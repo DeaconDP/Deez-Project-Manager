@@ -8,6 +8,15 @@ export type Platform =
   | "Consulting"
   | "Other";
 
+export type ProjectTool = "Cursor" | "Claude" | "Codex" | "OpenCode";
+
+export const PROJECT_TOOLS: ProjectTool[] = [
+  "Cursor",
+  "Claude",
+  "Codex",
+  "OpenCode",
+];
+
 export type GithubStatus =
   | "none"
   | "remote-only"
@@ -35,6 +44,7 @@ export interface Project {
   favorite: boolean;
   archived: boolean;
   notes: string;
+  tools: string[];
   agency?: string;
   client?: string;
   year?: number;
@@ -50,9 +60,12 @@ export interface ProjectStore {
 export interface ProbeResult {
   exists: boolean;
   isUnity: boolean;
+  isUnreal: boolean;
+  platform: Platform;
   unityVersion: string | null;
   gitRemoteUrl: string | null;
   githubRepo: string | null;
+  tools: string[];
 }
 
 export interface GithubRepo {
@@ -188,6 +201,7 @@ export function createEmptyProject(partial?: Partial<Project>): Project {
     favorite: false,
     archived: false,
     notes: "",
+    tools: [],
     updatedAt: new Date().toISOString(),
     ...partial,
   };

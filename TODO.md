@@ -42,5 +42,7 @@
 - [x] Inline status dropdowns in projects table (Urgent / Experiment / To Do / WIP / Testing / Maintaining / Done / Broken)
 - [x] Launch at PC start toggle (Windows autostart via Tauri plugin)
 - [x] Sync parent folders (persistent roots; immediate children → add missing)
+- [x] Sync menu: Sync all roots in one pass (+ per-folder still available)
 - [x] Click chrome title to rename (ALL CAPS); persist in localStorage
 - [x] Deez logo/icon pack in chrome + favicon + Tauri window icons
+- [x] Detect Unreal (`.uproject`) + AI tools (Cursor/Claude/Codex/OpenCode) on Add/Sync; tool icons in Platform cell

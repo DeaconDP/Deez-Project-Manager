@@ -1,4 +1,4 @@
-use crate::models::{GithubStatus, ProbeResult};
+use crate::models::{GithubStatus, Platform, ProbeResult};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -8,9 +8,12 @@ pub fn probe_project(path: &str) -> ProbeResult {
         return ProbeResult {
             exists: false,
             is_unity: false,
+            is_unreal: false,
+            platform: Platform::Other,
             unity_version: None,
             git_remote_url: None,
             github_repo: None,
+            tools: Vec::new(),
         };
     }
 
@@ -21,6 +24,15 @@ pub fn probe_project(path: &str) -> ProbeResult {
             .join("ProjectVersion.txt")
             .exists()
         || (root.join("Assets").exists() && root.join("ProjectSettings").exists());
+    let is_unreal = has_uproject(&root);
+    let platform = if is_unity {
+        Platform::Unity
+    } else if is_unreal {
+        Platform::Unreal
+    } else {
+        Platform::Other
+    };
+    let tools = detect_tools(&root);
 
     let git_remote_url = git_remote_url(&root);
     let github_repo = git_remote_url.as_ref().and_then(|u| parse_github_repo(u));
@@ -28,10 +40,47 @@ pub fn probe_project(path: &str) -> ProbeResult {
     ProbeResult {
         exists: true,
         is_unity,
+        is_unreal,
+        platform,
         unity_version,
         git_remote_url,
         github_repo,
+        tools,
     }
+}
+
+fn has_uproject(root: &Path) -> bool {
+    let Ok(entries) = std::fs::read_dir(root) else {
+        return false;
+    };
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if name.ends_with(".uproject") {
+            return true;
+        }
+    }
+    false
+}
+
+fn detect_tools(root: &Path) -> Vec<String> {
+    let mut tools = Vec::new();
+    if root.join(".cursor").is_dir() || root.join(".cursorrules").is_file() {
+        tools.push("Cursor".into());
+    }
+    if root.join(".claude").is_dir() || root.join("CLAUDE.md").is_file() {
+        tools.push("Claude".into());
+    }
+    if root.join(".codex").is_dir() || root.join("AGENTS.md").is_file() {
+        tools.push("Codex".into());
+    }
+    if root.join(".opencode").is_dir()
+        || root.join("opencode.json").is_file()
+        || root.join("opencode.jsonc").is_file()
+    {
+        tools.push("OpenCode".into());
+    }
+    tools
 }
 
 pub fn read_unity_version(root: &Path) -> Option<String> {

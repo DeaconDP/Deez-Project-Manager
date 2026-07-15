@@ -66,6 +66,7 @@ export function useProjects() {
         (store.projects ?? []).map((p) => ({
           ...p,
           archived: p.archived ?? false,
+          tools: p.tools ?? [],
           category: normalizeCategory(p.category),
           priority: normalizePriority(p.priority),
           status: normalizeStatus(p.status),

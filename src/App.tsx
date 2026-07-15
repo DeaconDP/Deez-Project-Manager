@@ -11,6 +11,7 @@ import {
   pickProjectFolders,
   refreshGithubStatuses,
   removeSyncRoot,
+  syncAllParentFolders,
   syncParentFolder,
 } from "./api";
 import { ActionFeedback } from "./components/ActionFeedback";
@@ -186,6 +187,18 @@ function App() {
         return formatImportSummary(result);
       },
       { loading: "Importing from VCC…" },
+    );
+  }
+
+  async function handleSyncAllParents() {
+    await runToolbar(
+      "sync",
+      async () => {
+        const result = await syncAllParentFolders();
+        replaceAll(result.projects);
+        return formatImportSummary(result);
+      },
+      { loading: "Syncing all parent folders…" },
     );
   }
 
@@ -398,6 +411,7 @@ function App() {
                 busy={toolbar.busy}
                 syncing={toolbarAction === "sync"}
                 disabled={toolbar.busy}
+                onSyncAll={() => void handleSyncAllParents()}
                 onSync={(path) => void handleSyncParent(path)}
                 onAddRoot={() => void handleAddSyncRoot()}
                 onRemoveRoot={(path) => void handleRemoveSyncRoot(path)}

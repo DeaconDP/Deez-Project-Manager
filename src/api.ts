@@ -121,3 +121,7 @@ export async function removeSyncRoot(path: string): Promise<string[]> {
 export async function syncParentFolder(path: string): Promise<ImportResult> {
   return tauriInvoke<ImportResult>("sync_parent_folder", { path });
 }
+
+export async function syncAllParentFolders(): Promise<ImportResult> {
+  return tauriInvoke<ImportResult>("sync_all_parent_folders");
+}

@@ -39,6 +39,8 @@ pub struct DiscoveredProject {
     pub github_url: Option<String>,
     pub github_repo: Option<String>,
     pub last_modified: Option<i64>,
+    pub platform: Platform,
+    pub tools: Vec<String>,
 }
 
 pub fn unity_hub_projects_path() -> PathBuf {
@@ -167,6 +169,8 @@ pub fn read_unity_hub_projects() -> Result<Vec<DiscoveredProject>, String> {
             github_url,
             github_repo,
             last_modified: entry.last_modified,
+            platform: Platform::Unity,
+            tools: Vec::new(),
         });
     }
 
@@ -217,6 +221,8 @@ pub fn read_vcc_projects() -> Result<Vec<DiscoveredProject>, String> {
             github_url: None,
             github_repo: None,
             last_modified: None,
+            platform: Platform::Unity,
+            tools: Vec::new(),
         });
     }
     Ok(out)
@@ -238,6 +244,8 @@ pub fn enrich_discovered(mut discovered: DiscoveredProject) -> DiscoveredProject
                 .map(|r| format!("https://github.com/{r}"))
         });
     }
+    discovered.platform = probe.platform;
+    discovered.tools = probe.tools;
     discovered
 }
 
@@ -267,7 +275,7 @@ pub fn make_project_from_discovered(discovered: &DiscoveredProject, sort_index: 
         name: discovered.name.clone(),
         sort_index,
         priority: Priority::Default,
-        platform: Platform::Unity,
+        platform: discovered.platform.clone(),
         status: "To Do".into(),
         category: "Other".into(),
         location: String::new(),
@@ -279,6 +287,7 @@ pub fn make_project_from_discovered(discovered: &DiscoveredProject, sort_index: 
         favorite: discovered.favorite,
         archived: false,
         notes: String::new(),
+        tools: discovered.tools.clone(),
         agency: None,
         client: None,
         year: None,
@@ -312,7 +321,10 @@ pub fn try_link_existing(projects: &mut [Project], discovered: &DiscoveredProjec
             project.unity_version = discovered.unity_version.clone();
         }
         if project.platform == Platform::Other {
-            project.platform = Platform::Unity;
+            project.platform = discovered.platform.clone();
+        }
+        if project.tools.is_empty() && !discovered.tools.is_empty() {
+            project.tools = discovered.tools.clone();
         }
         if discovered.favorite {
             project.favorite = true;

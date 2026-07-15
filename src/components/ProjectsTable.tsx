@@ -289,6 +289,93 @@ function PlatformIcon({ platform }: { platform: Platform }) {
   }
 }
 
+function ToolIcon({ tool }: { tool: string }) {
+  const common = {
+    className: "tool-icon",
+    width: 14,
+    height: 14,
+    viewBox: "0 0 14 14",
+    fill: "none",
+    xmlns: "http://www.w3.org/2000/svg",
+    "aria-hidden": true as const,
+  };
+
+  switch (tool) {
+    case "Cursor":
+      return (
+        <svg {...common}>
+          <path
+            d="M3 2.5 11 7 3 11.5V2.5Z"
+            stroke="currentColor"
+            strokeWidth="1.25"
+            strokeLinejoin="round"
+          />
+        </svg>
+      );
+    case "Claude":
+      return (
+        <svg {...common}>
+          <path
+            d="M7 2.25 11.25 7 7 11.75 2.75 7 7 2.25Z"
+            stroke="currentColor"
+            strokeWidth="1.25"
+            strokeLinejoin="round"
+          />
+        </svg>
+      );
+    case "Codex":
+      return (
+        <svg {...common}>
+          <rect
+            x="2.5"
+            y="2.5"
+            width="9"
+            height="9"
+            rx="1.5"
+            stroke="currentColor"
+            strokeWidth="1.25"
+          />
+          <path
+            d="M5 7h4M7 5v4"
+            stroke="currentColor"
+            strokeWidth="1.2"
+            strokeLinecap="round"
+          />
+        </svg>
+      );
+    case "OpenCode":
+      return (
+        <svg {...common}>
+          <path
+            d="M3.25 4.25h7.5v5.5H3.25V4.25Z"
+            stroke="currentColor"
+            strokeWidth="1.25"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M5.25 6.5 6.75 8l2-2.5"
+            stroke="currentColor"
+            strokeWidth="1.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      );
+    default:
+      return (
+        <svg {...common}>
+          <circle
+            cx="7"
+            cy="7"
+            r="4.25"
+            stroke="currentColor"
+            strokeWidth="1.25"
+          />
+        </svg>
+      );
+  }
+}
+
 interface RowProps {
   project: Project;
   busyId: string | null;
@@ -642,6 +729,15 @@ function ProjectDataCells({
             <PlatformIcon platform={project.platform} />
             <span className="platform-label">{project.platform}</span>
           </span>
+          {(project.tools?.length ?? 0) > 0 ? (
+            <span className="tool-icon-row" aria-label={project.tools.join(", ")}>
+              {project.tools.map((tool) => (
+                <span key={tool} className="tool-badge" title={tool}>
+                  <ToolIcon tool={tool} />
+                </span>
+              ))}
+            </span>
+          ) : null}
           {project.unityVersion ? (
             <span className="platform-sub" title={`Unity ${project.unityVersion}`}>
               {project.unityVersion}

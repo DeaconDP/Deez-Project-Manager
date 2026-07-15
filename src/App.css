@@ -768,6 +768,16 @@ button[aria-busy="true"]:disabled {
   max-width: 240px;
 }
 
+.sync-menu-all {
+  margin-bottom: 2px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sync-menu-all button {
+  font-weight: 600;
+}
+
 .sync-menu-row {
   display: flex;
   align-items: stretch;
@@ -1143,6 +1153,30 @@ button[aria-busy="true"]:disabled {
 
 .platform-icon {
   flex-shrink: 0;
+  color: var(--accent);
+}
+
+.tool-icon-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  margin-top: 1px;
+}
+
+.tool-badge {
+  display: inline-grid;
+  place-items: center;
+  color: var(--muted);
+  line-height: 0;
+}
+
+.tool-icon {
+  display: block;
+  color: inherit;
+}
+
+.tool-badge:hover {
   color: var(--accent);
 }
 

@@ -119,6 +119,7 @@ fn import_github_repos(app: AppHandle, username: Option<String>) -> Result<Impor
             favorite: false,
             archived: false,
             notes: repo.description.unwrap_or_default(),
+            tools: Vec::new(),
             agency: None,
             client: None,
             year: None,
@@ -139,6 +140,7 @@ fn import_github_repos(app: AppHandle, username: Option<String>) -> Result<Impor
 fn import_discovered_list(
     app: &AppHandle,
     discovered: Vec<hub_vcc::DiscoveredProject>,
+    force_unity: bool,
 ) -> Result<ImportResult, String> {
     let mut store = store::load_store(app)?;
     let mut existing_paths = hub_vcc::existing_path_keys(&store.projects);
@@ -154,7 +156,10 @@ fn import_discovered_list(
     let mut updated = 0u32;
 
     for raw in discovered {
-        let discovered = hub_vcc::enrich_discovered(raw);
+        let mut discovered = hub_vcc::enrich_discovered(raw);
+        if force_unity {
+            discovered.platform = Platform::Unity;
+        }
         let key = hub_vcc::normalize_path_key(&discovered.path);
         if existing_paths.contains(&key) {
             skipped += 1;
@@ -212,6 +217,8 @@ fn list_immediate_child_dirs(parent: &str) -> Result<Vec<hub_vcc::DiscoveredProj
             github_url: None,
             github_repo: None,
             last_modified: None,
+            platform: Platform::Other,
+            tools: Vec::new(),
         });
     }
 
@@ -268,19 +275,41 @@ fn sync_parent_folder(app: AppHandle, path: String) -> Result<ImportResult, Stri
         return Err("SYNC-008: parent is not in the sync roots list".into());
     }
     let discovered = list_immediate_child_dirs(&path)?;
-    import_discovered_list(&app, discovered)
+    import_discovered_list(&app, discovered, false)
+}
+
+#[tauri::command]
+fn sync_all_parent_folders(app: AppHandle) -> Result<ImportResult, String> {
+    let store = store::load_store(&app)?;
+    if store.sync_roots.is_empty() {
+        return Err("SYNC-009: no parent folders to sync".into());
+    }
+
+    let mut discovered = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for root in &store.sync_roots {
+        for child in list_immediate_child_dirs(root)? {
+            let key = hub_vcc::normalize_path_key(&child.path);
+            if key.is_empty() || !seen.insert(key) {
+                continue;
+            }
+            discovered.push(child);
+        }
+    }
+    discovered.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    import_discovered_list(&app, discovered, false)
 }
 
 #[tauri::command]
 fn import_unity_hub(app: AppHandle) -> Result<ImportResult, String> {
     let discovered = hub_vcc::read_unity_hub_projects()?;
-    import_discovered_list(&app, discovered)
+    import_discovered_list(&app, discovered, true)
 }
 
 #[tauri::command]
 fn import_vcc(app: AppHandle) -> Result<ImportResult, String> {
     let discovered = hub_vcc::read_vcc_projects()?;
-    import_discovered_list(&app, discovered)
+    import_discovered_list(&app, discovered, true)
 }
 
 #[tauri::command]
@@ -304,9 +333,11 @@ fn import_local_folders(app: AppHandle, paths: Vec<String>) -> Result<ImportResu
             github_url: None,
             github_repo: None,
             last_modified: None,
+            platform: Platform::Other,
+            tools: Vec::new(),
         });
     }
-    import_discovered_list(&app, discovered)
+    import_discovered_list(&app, discovered, false)
 }
 
 #[tauri::command]
@@ -374,6 +405,7 @@ pub fn run() {
             add_sync_root,
             remove_sync_root,
             sync_parent_folder,
+            sync_all_parent_folders,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

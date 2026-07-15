@@ -93,6 +93,8 @@ pub struct Project {
     #[serde(default)]
     pub archived: bool,
     pub notes: String,
+    #[serde(default)]
+    pub tools: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agency: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -126,9 +128,13 @@ impl Default for ProjectStore {
 pub struct ProbeResult {
     pub exists: bool,
     pub is_unity: bool,
+    pub is_unreal: bool,
+    pub platform: Platform,
     pub unity_version: Option<String>,
     pub git_remote_url: Option<String>,
     pub github_repo: Option<String>,
+    #[serde(default)]
+    pub tools: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
