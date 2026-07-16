@@ -41,6 +41,7 @@ pub struct DiscoveredProject {
     pub last_modified: Option<i64>,
     pub platform: Platform,
     pub tools: Vec<String>,
+    pub has_run_script: bool,
 }
 
 pub fn unity_hub_projects_path() -> PathBuf {
@@ -171,6 +172,7 @@ pub fn read_unity_hub_projects() -> Result<Vec<DiscoveredProject>, String> {
             last_modified: entry.last_modified,
             platform: Platform::Unity,
             tools: Vec::new(),
+            has_run_script: false,
         });
     }
 
@@ -223,6 +225,7 @@ pub fn read_vcc_projects() -> Result<Vec<DiscoveredProject>, String> {
             last_modified: None,
             platform: Platform::Unity,
             tools: Vec::new(),
+            has_run_script: false,
         });
     }
     Ok(out)
@@ -245,7 +248,12 @@ pub fn enrich_discovered(mut discovered: DiscoveredProject) -> DiscoveredProject
         });
     }
     discovered.platform = probe.platform;
+    // Hub/VCC may stamp a Unity version; clear it when filesystem says Unreal.
+    if discovered.platform == Platform::Unreal {
+        discovered.unity_version = None;
+    }
     discovered.tools = probe.tools;
+    discovered.has_run_script = probe.has_run_script;
     discovered
 }
 
@@ -288,11 +296,133 @@ pub fn make_project_from_discovered(discovered: &DiscoveredProject, sort_index: 
         archived: false,
         notes: String::new(),
         tools: discovered.tools.clone(),
+        has_run_script: discovered.has_run_script,
         agency: None,
         client: None,
         year: None,
         updated_at: now,
     }
+}
+
+/// Re-apply probe onto an already-tracked path. Engine detection (Unity/Unreal)
+/// overwrites a wrong platform; merges AI tools; fills/clears Unity version.
+/// Returns true if anything changed. Probe `Other` leaves platform alone
+/// (except demotion of false Unity is handled by [`apply_engine_probe`]).
+pub fn try_refresh_existing_by_path(
+    projects: &mut [Project],
+    discovered: &DiscoveredProject,
+) -> bool {
+    let key = normalize_path_key(&discovered.path);
+    for project in projects.iter_mut() {
+        let Some(path) = project.local_path.as_ref() else {
+            continue;
+        };
+        if path.trim().is_empty() || normalize_path_key(path) != key {
+            continue;
+        }
+
+        let engine = project_fs::EngineProbe {
+            exists: true,
+            is_unity: discovered.platform == Platform::Unity,
+            is_unreal: discovered.platform == Platform::Unreal,
+            platform: discovered.platform.clone(),
+            unity_version: discovered.unity_version.clone(),
+            tools: discovered.tools.clone(),
+            has_run_script: discovered.has_run_script,
+        };
+        // Import/sync path: only promote to Unity/Unreal (do not demote here —
+        // demotion of false Unity happens on bulk re-probe via detect_engine).
+        return apply_engine_probe(project, &engine, false);
+    }
+    false
+}
+
+/// Apply filesystem engine probe onto a stored project.
+/// When `demote_false_unity` is true and probe is Other while platform is Unity,
+/// demote to Other (heals Hub/VCC force-Unity junk folders).
+pub fn apply_engine_probe(
+    project: &mut Project,
+    engine: &project_fs::EngineProbe,
+    demote_false_unity: bool,
+) -> bool {
+    if !engine.exists {
+        return false;
+    }
+
+    let mut changed = false;
+
+    match engine.platform {
+        Platform::Unity | Platform::Unreal => {
+            if project.platform != engine.platform {
+                project.platform = engine.platform.clone();
+                changed = true;
+            }
+        }
+        Platform::Web => {
+            if project.platform == Platform::Other
+                || (demote_false_unity && project.platform == Platform::Unity)
+            {
+                project.platform = Platform::Web;
+                changed = true;
+            }
+        }
+        Platform::Other if demote_false_unity && project.platform == Platform::Unity => {
+            project.platform = Platform::Other;
+            changed = true;
+        }
+        _ => {}
+    }
+
+    if project.platform == Platform::Unreal && project.unity_version.is_some() {
+        project.unity_version = None;
+        changed = true;
+    } else if project.platform == Platform::Unity
+        && project.unity_version.is_none()
+        && engine.unity_version.is_some()
+    {
+        project.unity_version = engine.unity_version.clone();
+        changed = true;
+    } else if project.platform != Platform::Unity && project.unity_version.is_some() {
+        project.unity_version = None;
+        changed = true;
+    }
+
+    for tool in &engine.tools {
+        if !project.tools.iter().any(|t| t == tool) {
+            project.tools.push(tool.clone());
+            changed = true;
+        }
+    }
+
+    if project.has_run_script != engine.has_run_script {
+        project.has_run_script = engine.has_run_script;
+        changed = true;
+    }
+
+    if changed {
+        project.updated_at = chrono::Utc::now().to_rfc3339();
+    }
+    changed
+}
+
+/// Re-probe every project with a local path (filesystem only, no git).
+/// Returns true if any row changed.
+pub fn reprobe_all_engines(projects: &mut [Project]) -> bool {
+    let mut any = false;
+    for project in projects.iter_mut() {
+        let Some(path) = project.local_path.as_ref() else {
+            continue;
+        };
+        if path.trim().is_empty() {
+            continue;
+        }
+        let path = path.clone();
+        let engine = project_fs::detect_engine(&path);
+        if apply_engine_probe(project, &engine, true) {
+            any = true;
+        }
+    }
+    any
 }
 
 /// If an existing GitHub-only row matches this clone, fill in local path instead of adding.
@@ -317,15 +447,25 @@ pub fn try_link_existing(projects: &mut [Project], discovered: &DiscoveredProjec
             continue;
         }
         project.local_path = Some(discovered.path.clone());
-        if project.unity_version.is_none() {
-            project.unity_version = discovered.unity_version.clone();
-        }
-        if project.platform == Platform::Other {
+        if matches!(
+            discovered.platform,
+            Platform::Unity | Platform::Unreal
+        ) && project.platform != discovered.platform
+        {
             project.platform = discovered.platform.clone();
+        }
+        if project.platform == Platform::Unreal {
+            project.unity_version = None;
+        } else if project.platform == Platform::Unity
+            && project.unity_version.is_none()
+            && discovered.unity_version.is_some()
+        {
+            project.unity_version = discovered.unity_version.clone();
         }
         if project.tools.is_empty() && !discovered.tools.is_empty() {
             project.tools = discovered.tools.clone();
         }
+        project.has_run_script = discovered.has_run_script;
         if discovered.favorite {
             project.favorite = true;
         }
@@ -338,4 +478,62 @@ pub fn try_link_existing(projects: &mut [Project], discovered: &DiscoveredProjec
         return true;
     }
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::ProjectStore;
+    use std::fs;
+
+    #[test]
+    fn reprobe_heals_live_store_unreal_labels() {
+        let Ok(appdata) = std::env::var("APPDATA") else {
+            return;
+        };
+        let path = PathBuf::from(appdata)
+            .join("com.deez.projectmanager")
+            .join("projects.json");
+        if !path.exists() {
+            return;
+        }
+        let raw = fs::read_to_string(&path).expect("read store");
+        let mut store: ProjectStore = serde_json::from_str(&raw).expect("parse store");
+        let before_unreal = store
+            .projects
+            .iter()
+            .filter(|p| p.platform == Platform::Unreal)
+            .count();
+        let changed = reprobe_all_engines(&mut store.projects);
+        let after_unreal = store
+            .projects
+            .iter()
+            .filter(|p| p.platform == Platform::Unreal)
+            .count();
+        let still_unity_unreal_path = store
+            .projects
+            .iter()
+            .filter(|p| {
+                p.platform == Platform::Unity
+                    && p.local_path
+                        .as_ref()
+                        .is_some_and(|lp| lp.contains("Unreal Projects"))
+            })
+            .count();
+        assert!(
+            changed || after_unreal > before_unreal || still_unity_unreal_path == 0,
+            "expected engine re-probe to heal Unreal rows"
+        );
+        assert_eq!(
+            still_unity_unreal_path, 0,
+            "Unreal Projects paths must not stay labeled Unity"
+        );
+        assert!(
+            after_unreal >= 50,
+            "expected dozens of Unreal rows, got {after_unreal}"
+        );
+        // Persist so the app shows healed labels immediately.
+        let out = serde_json::to_string_pretty(&store).expect("serialize");
+        fs::write(&path, out).expect("write store");
+    }
 }

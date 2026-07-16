@@ -11,11 +11,11 @@ export function ProjectsSkeleton() {
               <div className="col-fav">★</div>
               <div className="col-platform">Platform</div>
               <div className="col-name">Name</div>
-              <div>Priority</div>
-              <div>Status</div>
-              <div>Category</div>
-              <div>GitHub</div>
-              <div>Actions</div>
+              <div className="col-priority">Priority</div>
+              <div className="col-status">Status</div>
+              <div className="col-category">Category</div>
+              <div className="col-github">GitHub</div>
+              <div className="col-actions">Actions</div>
             </div>
           </div>
           <div className="projects-table-body">
@@ -36,16 +36,16 @@ export function ProjectsSkeleton() {
                     <span className="skeleton-bar skeleton-bar-md" />
                   </span>
                 </div>
-                <div>
+                <div className="col-priority">
                   <span className="skeleton-bar skeleton-bar-sm" />
                 </div>
-                <div>
+                <div className="col-status">
                   <span className="skeleton-bar skeleton-bar-md" />
                 </div>
-                <div>
+                <div className="col-category">
                   <span className="skeleton-bar skeleton-bar-md" />
                 </div>
-                <div>
+                <div className="col-github">
                   <span className="skeleton-bar skeleton-bar-sm" />
                 </div>
                 <div className="col-actions">

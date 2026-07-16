@@ -85,6 +85,31 @@ export type TableSortState = {
   dir: "asc" | "desc";
 };
 
+const SORT_STORAGE_KEY = "deez-table-sort";
+const DEFAULT_SORT: TableSortState = { key: "custom", dir: "asc" };
+
+function readStoredSort(): TableSortState {
+  try {
+    const raw = localStorage.getItem(SORT_STORAGE_KEY);
+    if (raw == null) return DEFAULT_SORT;
+    const parsed = JSON.parse(raw) as TableSortState;
+    if (parsed?.key && (parsed.dir === "asc" || parsed.dir === "desc")) {
+      return { key: parsed.key, dir: parsed.dir };
+    }
+  } catch {
+    /* ignore */
+  }
+  return DEFAULT_SORT;
+}
+
+function writeStoredSort(sort: TableSortState) {
+  try {
+    localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify(sort));
+  } catch {
+    /* ignore */
+  }
+}
+
 const PRIORITY_RANK: Record<Priority, number> = {
   Crit: 0,
   High: 1,
@@ -379,16 +404,18 @@ function ToolIcon({ tool }: { tool: string }) {
 interface RowProps {
   project: Project;
   busyId: string | null;
-  busyAction: "open" | "reveal" | null;
+  busyAction: "open" | "reveal" | "run" | null;
   archivedView: boolean;
-  allowDrag: boolean;
+  /** First-paint enter only — not on header sort reorder. */
+  animateEnter?: boolean;
   index?: number;
-  reduceMotion?: boolean;
   onToggleFavorite: (id: string) => void;
   onPriorityChange: (id: string, priority: Priority) => void;
   onStatusChange: (id: string, status: Status) => void;
   onCategoryChange: (id: string, category: Category) => void;
+  onOpenBoard?: (project: Project) => void;
   onOpen: (project: Project) => void;
+  onRun: (project: Project) => void;
   onReveal: (project: Project) => void;
   onEdit: (project: Project) => void;
   onArchive: (project: Project) => void;
@@ -404,9 +431,11 @@ type OverflowMenuPos = {
 function RowOverflowMenu({
   project,
   rowBusy,
+  openBusy,
   revealBusy,
   archivedView,
   compact,
+  onOpen,
   onReveal,
   onEdit,
   onArchive,
@@ -414,9 +443,11 @@ function RowOverflowMenu({
 }: {
   project: Project;
   rowBusy: boolean;
+  openBusy: boolean;
   revealBusy: boolean;
   archivedView: boolean;
   compact?: boolean;
+  onOpen: (project: Project) => void;
   onReveal: (project: Project) => void;
   onEdit: (project: Project) => void;
   onArchive: (project: Project) => void;
@@ -441,7 +472,7 @@ function RowOverflowMenu({
       if (!trigger) return;
       const rect = trigger.getBoundingClientRect();
       const gap = 4;
-      const estimatedHeight = 140;
+      const estimatedHeight = 180;
       const spaceBelow = window.innerHeight - rect.bottom - gap;
       const openUp = spaceBelow < estimatedHeight && rect.top > spaceBelow;
       const width = 160;
@@ -523,6 +554,17 @@ function RowOverflowMenu({
                 type="button"
                 role="menuitem"
                 disabled={rowBusy || !project.localPath}
+                aria-busy={openBusy}
+                onClick={() => run(() => onOpen(project))}
+              >
+                {openBusy ? "Opening…" : "Open"}
+              </button>
+            </li>
+            <li role="none">
+              <button
+                type="button"
+                role="menuitem"
+                disabled={rowBusy || !project.localPath}
                 aria-busy={revealBusy}
                 onClick={() => run(() => onReveal(project))}
               >
@@ -592,6 +634,7 @@ function ProjectActions({
   archivedView,
   compact,
   onOpen,
+  onRun,
   onReveal,
   onEdit,
   onArchive,
@@ -603,42 +646,66 @@ function ProjectActions({
   | "onStatusChange"
   | "onCategoryChange"
   | "index"
-  | "allowDrag"
+  | "animateEnter"
 > & {
   compact?: boolean;
 }) {
   const rowBusy = busyId === project.id;
   const openBusy = rowBusy && busyAction === "open";
+  const runBusy = rowBusy && busyAction === "run";
   const revealBusy = rowBusy && busyAction === "reveal";
   const btnClass = compact ? "btn-sm" : undefined;
+  const canRun = !!project.localPath && project.hasRunScript;
 
   return (
     <div className="project-actions">
-      <button
-        type="button"
-        className={`btn-primary${btnClass ? ` ${btnClass}` : ""}`}
-        disabled={rowBusy || !project.localPath}
-        aria-busy={openBusy}
-        onClick={() => onOpen(project)}
-        title={
-          project.localPath ? "Open project" : "Set a local path to open"
-        }
-      >
-        {openBusy ? (
-          <span className="btn-busy-label">
-            <Spinner size="sm" />
-            Opening…
-          </span>
-        ) : (
-          "Open"
-        )}
-      </button>
+      {canRun ? (
+        <button
+          type="button"
+          className={`btn-primary project-action-run${btnClass ? ` ${btnClass}` : ""}`}
+          disabled={rowBusy || !project.localPath}
+          aria-busy={runBusy}
+          onClick={() => onRun(project)}
+          title="Launch run.bat / run.command"
+        >
+          {runBusy ? (
+            <span className="btn-busy-label">
+              <Spinner size="sm" />
+              Starting…
+            </span>
+          ) : (
+            "Run"
+          )}
+        </button>
+      ) : (
+        <button
+          type="button"
+          className={`btn-primary project-action-open${btnClass ? ` ${btnClass}` : ""}`}
+          disabled={rowBusy || !project.localPath}
+          aria-busy={openBusy}
+          onClick={() => onOpen(project)}
+          title={
+            project.localPath ? "Open project" : "Set a local path to open"
+          }
+        >
+          {openBusy ? (
+            <span className="btn-busy-label">
+              <Spinner size="sm" />
+              Opening…
+            </span>
+          ) : (
+            "Open"
+          )}
+        </button>
+      )}
       <RowOverflowMenu
         project={project}
         rowBusy={rowBusy}
+        openBusy={!!openBusy}
         revealBusy={!!revealBusy}
         archivedView={archivedView}
         compact={compact}
+        onOpen={onOpen}
         onReveal={onReveal}
         onEdit={onEdit}
         onArchive={onArchive}
@@ -704,6 +771,7 @@ function ProjectDataCells({
   status,
   category,
   actions,
+  onOpenBoard,
 }: {
   project: Project;
   drag: ReactNode;
@@ -712,6 +780,7 @@ function ProjectDataCells({
   status: ReactNode;
   category: ReactNode;
   actions: ReactNode;
+  onOpenBoard?: (project: Project) => void;
 }) {
   const ghLabel = githubStatusLabel(project.githubStatus);
 
@@ -747,7 +816,17 @@ function ProjectDataCells({
       </Cell>
       <Cell className="col-name">
         <div className="name-cell">
-          <span className="name-primary">{project.name}</span>
+          {onOpenBoard ? (
+            <button
+              type="button"
+              className="name-primary name-board-link"
+              onClick={() => onOpenBoard(project)}
+            >
+              {project.name}
+            </button>
+          ) : (
+            <span className="name-primary">{project.name}</span>
+          )}
           <NamePathLine project={project} />
         </div>
       </Cell>
@@ -781,6 +860,7 @@ function InteractiveRowCells({
   onPriorityChange,
   onStatusChange,
   onCategoryChange,
+  onOpenBoard,
   actions,
 }: {
   project: Project;
@@ -791,11 +871,13 @@ function InteractiveRowCells({
   onPriorityChange: (id: string, priority: Priority) => void;
   onStatusChange: (id: string, status: Status) => void;
   onCategoryChange: (id: string, category: Category) => void;
+  onOpenBoard?: (project: Project) => void;
   actions: ReactNode;
 }) {
   return (
     <ProjectDataCells
       project={project}
+      onOpenBoard={onOpenBoard}
       drag={
         <button
           type="button"
@@ -899,7 +981,9 @@ function OverlayRowCells({ project }: { project: Project }) {
         </span>
       }
       actions={
-        <span className="drag-overlay-actions muted">Open ···</span>
+        <span className="drag-overlay-actions muted">
+          {project.hasRunScript ? "Run" : "Open"} ···
+        </span>
       }
     />
   );
@@ -933,62 +1017,63 @@ function ProjectRowOverlay({
   );
 }
 
+/** Plain row — no useSortable (used for column header sorts). */
 function ProjectRow({
   project,
   busyId,
   busyAction,
   archivedView,
-  allowDrag,
+  animateEnter = false,
   index = 0,
-  reduceMotion = false,
+  allowDrag = false,
+  isDragging = false,
+  dragHandleProps,
+  setNodeRef,
+  style,
   onToggleFavorite,
   onPriorityChange,
   onStatusChange,
   onCategoryChange,
+  onOpenBoard,
   onOpen,
+  onRun,
   onReveal,
   onEdit,
   onArchive,
   onRestore,
-}: RowProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({
-    id: project.id,
-    disabled: !allowDrag,
-    transition: reduceMotion ? null : SORTABLE_TRANSITION,
-  });
-
-  // Translate-only — required for clean sibling slides (scale would stretch rows).
+}: RowProps & {
+  allowDrag?: boolean;
+  isDragging?: boolean;
+  dragHandleProps?: Record<string, unknown>;
+  setNodeRef?: (node: HTMLElement | null) => void;
+  style?: CSSProperties;
+}) {
   // Opacity-only enter (no transform) so enter animation never fights dnd-kit FLIP.
-  const style: CSSProperties = {
-    transform: CSS.Translate.toString(transform),
-    transition: isDragging ? undefined : transition,
-    ["--stagger" as string]: `${Math.min(index, 5) * 45}ms`,
-  };
+  const rowStyle: CSSProperties | undefined = animateEnter
+    ? {
+        ...style,
+        ["--stagger" as string]: `${Math.min(index, 5) * 45}ms`,
+      }
+    : style;
 
   return (
     <div
       ref={setNodeRef}
-      style={style}
+      style={rowStyle}
       role="row"
-      className={`project-row enter-fade priority-row-${project.priority.toLowerCase()}${isDragging ? " is-dragging" : ""}`}
+      className={`project-row${animateEnter ? " enter-fade" : ""} priority-row-${project.priority.toLowerCase()}${isDragging ? " is-dragging" : ""}`}
       data-dragging={isDragging || undefined}
     >
       <InteractiveRowCells
         project={project}
         isDragging={isDragging}
         allowDrag={allowDrag}
-        dragHandleProps={{ ...attributes, ...listeners }}
+        dragHandleProps={dragHandleProps ?? {}}
         onToggleFavorite={onToggleFavorite}
         onPriorityChange={onPriorityChange}
         onStatusChange={onStatusChange}
         onCategoryChange={onCategoryChange}
+        onOpenBoard={onOpenBoard}
         actions={
           <ProjectActions
             project={project}
@@ -997,6 +1082,7 @@ function ProjectRow({
             archivedView={archivedView}
             compact
             onOpen={onOpen}
+            onRun={onRun}
             onReveal={onReveal}
             onEdit={onEdit}
             onArchive={onArchive}
@@ -1005,6 +1091,41 @@ function ProjectRow({
         }
       />
     </div>
+  );
+}
+
+/** Custom-sort only — mounts useSortable. */
+function SortableProjectRow({
+  reduceMotion = false,
+  ...props
+}: RowProps & { reduceMotion?: boolean }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: props.project.id,
+    transition: reduceMotion ? null : SORTABLE_TRANSITION,
+  });
+
+  // Translate-only — required for clean sibling slides (scale would stretch rows).
+  const style: CSSProperties = {
+    transform: CSS.Translate.toString(transform),
+    transition: isDragging ? undefined : transition,
+  };
+
+  return (
+    <ProjectRow
+      {...props}
+      allowDrag
+      isDragging={isDragging}
+      setNodeRef={setNodeRef}
+      style={style}
+      dragHandleProps={{ ...attributes, ...listeners }}
+    />
   );
 }
 
@@ -1070,7 +1191,7 @@ interface TableProps {
   projects: Project[];
   layout: UiLayout;
   busyId: string | null;
-  busyAction: "open" | "reveal" | null;
+  busyAction: "open" | "reveal" | "run" | null;
   archivedView: boolean;
   emptyMessage?: string;
   emptyHint?: string;
@@ -1082,7 +1203,9 @@ interface TableProps {
   onPriorityChange: (id: string, priority: Priority) => void;
   onStatusChange: (id: string, status: Status) => void;
   onCategoryChange: (id: string, category: Category) => void;
+  onOpenBoard?: (project: Project) => void;
   onOpen: (project: Project) => void;
+  onRun: (project: Project) => void;
   onReveal: (project: Project) => void;
   onEdit: (project: Project) => void;
   onArchive: (project: Project) => void;
@@ -1105,7 +1228,9 @@ export function ProjectsTable({
   onPriorityChange,
   onStatusChange,
   onCategoryChange,
+  onOpenBoard,
   onOpen,
+  onRun,
   onReveal,
   onEdit,
   onArchive,
@@ -1113,22 +1238,54 @@ export function ProjectsTable({
 }: TableProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overlayWidth, setOverlayWidth] = useState<number | undefined>();
-  const [sort, setSort] = useState<TableSortState>({
-    key: "custom",
-    dir: "asc",
-  });
+  const [sort, setSort] = useState<TableSortState>(() => readStoredSort());
   const [reduceMotion] = useState(
     () =>
       typeof window !== "undefined" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches,
   );
+  const [animateEnter, setAnimateEnter] = useState(true);
+  useEffect(() => {
+    setAnimateEnter(false);
+  }, []);
 
   const allowDrag = sort.key === "custom";
 
+  // Same-key dir toggle: reverse prior result instead of full compare re-sort.
+  const sortCacheRef = useRef<{
+    projects: Project[];
+    key: Exclude<TableSortKey, "custom">;
+    dir: "asc" | "desc";
+    result: Project[];
+  } | null>(null);
+
   const displayProjects = useMemo(() => {
-    if (sort.key === "custom") return projects;
+    if (sort.key === "custom") {
+      sortCacheRef.current = null;
+      return projects;
+    }
     const key = sort.key;
-    return [...projects].sort((a, b) => compareProjects(a, b, key, sort.dir));
+    const cache = sortCacheRef.current;
+    if (
+      cache &&
+      cache.projects === projects &&
+      cache.key === key &&
+      cache.dir !== sort.dir
+    ) {
+      const reversed = [...cache.result].reverse();
+      sortCacheRef.current = {
+        projects,
+        key,
+        dir: sort.dir,
+        result: reversed,
+      };
+      return reversed;
+    }
+    const result = [...projects].sort((a, b) =>
+      compareProjects(a, b, key, sort.dir),
+    );
+    sortCacheRef.current = { projects, key, dir: sort.dir, result };
+    return result;
   }, [projects, sort]);
 
   const itemIds = useMemo(
@@ -1151,19 +1308,17 @@ export function ProjectsTable({
   );
 
   function handleSort(key: TableSortKey) {
-    setSort((prev) => {
-      if (key === "custom") {
-        return { key: "custom", dir: "asc" };
-      }
-      if (prev.key === key) {
-        return { key, dir: prev.dir === "asc" ? "desc" : "asc" };
-      }
-      return { key, dir: "asc" };
-    });
+    setActiveId(null);
+    setOverlayWidth(undefined);
+    const next: TableSortState =
+      key === "custom"
+        ? DEFAULT_SORT
+        : { key, dir: sort.key === key && sort.dir === "asc" ? "desc" : "asc" };
+    writeStoredSort(next);
+    setSort(next);
   }
 
   function handleDragStart(event: DragStartEvent) {
-    if (!allowDrag) return;
     setActiveId(String(event.active.id));
     setOverlayWidth(event.active.rect.current.initial?.width);
   }
@@ -1172,7 +1327,6 @@ export function ProjectsTable({
     const { active, over } = event;
     setActiveId(null);
     setOverlayWidth(undefined);
-    if (!allowDrag) return;
     if (over && active.id !== over.id) {
       onReorder(String(active.id), String(over.id));
     }
@@ -1214,22 +1368,121 @@ export function ProjectsTable({
     busyId,
     busyAction,
     archivedView,
-    allowDrag,
-    reduceMotion,
+    animateEnter,
     onToggleFavorite,
     onPriorityChange,
     onStatusChange,
     onCategoryChange,
+    onOpenBoard,
     onOpen,
+    onRun,
     onReveal,
     onEdit,
     onArchive,
     onRestore,
   };
 
+  const table = (
+    <div
+      className={`table-wrap table-wrap-${layout}${activeId ? " is-sorting" : ""}`}
+    >
+      <div className="projects-table" role="table" aria-label="Projects">
+        <div className="projects-table-head" role="rowgroup">
+          <div className="projects-table-header-row" role="row">
+            <SortHeader
+              label="Custom"
+              sortKey="custom"
+              sort={sort}
+              onSort={handleSort}
+              className="col-drag"
+            />
+            <SortHeader
+              label="★"
+              ariaLabel="stars"
+              sortKey="favorite"
+              sort={sort}
+              onSort={handleSort}
+              className="col-fav"
+              hideIndicator
+            />
+            <SortHeader
+              label="Platform"
+              sortKey="platform"
+              sort={sort}
+              onSort={handleSort}
+              className="col-platform"
+            />
+            <SortHeader
+              label="Name"
+              sortKey="name"
+              sort={sort}
+              onSort={handleSort}
+              className="col-name"
+            />
+            <SortHeader
+              label="Priority"
+              sortKey="priority"
+              sort={sort}
+              onSort={handleSort}
+              className="col-priority"
+            />
+            <SortHeader
+              label="Status"
+              sortKey="status"
+              sort={sort}
+              onSort={handleSort}
+              className="col-status"
+            />
+            <SortHeader
+              label="Category"
+              sortKey="category"
+              sort={sort}
+              onSort={handleSort}
+              className="col-category"
+            />
+            <SortHeader
+              label="GitHub"
+              sortKey="github"
+              sort={sort}
+              onSort={handleSort}
+              className="col-github"
+            />
+            <div role="columnheader" className="col-actions">
+              Actions
+            </div>
+          </div>
+        </div>
+        <div className="projects-table-body" role="rowgroup">
+          {displayProjects.map((project, index) =>
+            allowDrag ? (
+              <SortableProjectRow
+                key={project.id}
+                project={project}
+                index={animateEnter ? index : 0}
+                reduceMotion={reduceMotion}
+                {...sharedProps}
+              />
+            ) : (
+              <ProjectRow
+                key={project.id}
+                project={project}
+                index={animateEnter ? index : 0}
+                {...sharedProps}
+              />
+            ),
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  if (!allowDrag) {
+    return table;
+  }
+
   return (
     <DndContext
-      sensors={allowDrag ? sensors : []}
+      sensors={sensors}
       collisionDetection={closestCenter}
       modifiers={[restrictToVerticalAxis]}
       onDragStart={handleDragStart}
@@ -1237,81 +1490,7 @@ export function ProjectsTable({
       onDragCancel={handleDragCancel}
     >
       <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
-        <div
-          className={`table-wrap table-wrap-${layout}${activeId ? " is-sorting" : ""}`}
-        >
-          <div className="projects-table" role="table" aria-label="Projects">
-            <div className="projects-table-head" role="rowgroup">
-              <div className="projects-table-header-row" role="row">
-                <SortHeader
-                  label="Custom"
-                  sortKey="custom"
-                  sort={sort}
-                  onSort={handleSort}
-                  className="col-drag"
-                />
-                <SortHeader
-                  label="★"
-                  ariaLabel="stars"
-                  sortKey="favorite"
-                  sort={sort}
-                  onSort={handleSort}
-                  className="col-fav"
-                  hideIndicator
-                />
-                <SortHeader
-                  label="Platform"
-                  sortKey="platform"
-                  sort={sort}
-                  onSort={handleSort}
-                  className="col-platform"
-                />
-                <SortHeader
-                  label="Name"
-                  sortKey="name"
-                  sort={sort}
-                  onSort={handleSort}
-                  className="col-name"
-                />
-                <SortHeader
-                  label="Priority"
-                  sortKey="priority"
-                  sort={sort}
-                  onSort={handleSort}
-                />
-                <SortHeader
-                  label="Status"
-                  sortKey="status"
-                  sort={sort}
-                  onSort={handleSort}
-                />
-                <SortHeader
-                  label="Category"
-                  sortKey="category"
-                  sort={sort}
-                  onSort={handleSort}
-                />
-                <SortHeader
-                  label="GitHub"
-                  sortKey="github"
-                  sort={sort}
-                  onSort={handleSort}
-                />
-                <div role="columnheader">Actions</div>
-              </div>
-            </div>
-            <div className="projects-table-body" role="rowgroup">
-              {displayProjects.map((project, index) => (
-                <ProjectRow
-                  key={project.id}
-                  project={project}
-                  index={index}
-                  {...sharedProps}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
+        {table}
       </SortableContext>
       <DragOverlay dropAnimation={reduceMotion ? null : DROP_ANIMATION} zIndex={40}>
         {activeProject ? (

@@ -11,14 +11,15 @@ import {
   pickProjectFolders,
   refreshGithubStatuses,
   removeSyncRoot,
+  runProject,
   syncAllParentFolders,
   syncParentFolder,
 } from "./api";
 import { ActionFeedback } from "./components/ActionFeedback";
 import { AppChrome } from "./components/AppChrome";
-import { AutostartToggle } from "./components/AutostartToggle";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { ImportMenu, type ImportKind } from "./components/ImportMenu";
+import { KanbanBoard } from "./components/KanbanBoard";
 import { ProjectEditModal } from "./components/ProjectEditModal";
 import { ProjectsSkeleton } from "./components/ProjectsSkeleton";
 import { ProjectsTable } from "./components/ProjectsTable";
@@ -29,15 +30,38 @@ import { useAsyncAction } from "./hooks/useAsyncAction";
 import { useProjects } from "./hooks/useProjects";
 import { useAppTitle } from "./hooks/useAppTitle";
 import { useUiZoom } from "./hooks/useUiZoom";
+import type { TaskMutations } from "./hooks/useTasks";
+import {
+  MetricsChromeProvider,
+  MetricsGlanceSlot,
+  MetricsLiveSlot,
+} from "./monitor/components/MetricsChrome";
+import { FuelTab } from "./monitor/components/FuelTab";
+import { OverviewTab } from "./monitor/components/OverviewTab";
+import { ProcessesHub } from "./monitor/components/ProcessesHub";
+import { SettingsPanel } from "./monitor/components/SettingsPanel";
 import type { Project } from "./types";
 import "./App.css";
+import "./monitor/monitor.css";
 
 type ToolbarAction = "refresh" | ImportKind | "add" | "sync" | "sync-manage";
-type RowBusy = { id: string; kind: "open" | "reveal" };
+type RowBusy = { id: string; kind: "open" | "reveal" | "run" };
+type AppTab = "projects" | "overview" | "processes" | "fuel" | "settings";
+type ProcessView = "cpu" | "network" | "usb" | "spikes";
+
+const APP_TABS: { id: AppTab; label: string }[] = [
+  { id: "projects", label: "Projects" },
+  { id: "overview", label: "Overview" },
+  { id: "processes", label: "Processes" },
+  { id: "fuel", label: "Fuel" },
+  { id: "settings", label: "Settings" },
+];
+
 
 function App() {
   const {
     projects,
+    tasks,
     syncRoots,
     loading,
     saving,
@@ -52,7 +76,23 @@ function App() {
     setPriority,
     setCategory,
     setStatus,
+    addTask,
+    updateTask,
+    moveTask,
+    addTaskComment,
+    importTrelloTasks,
   } = useProjects();
+
+  const taskMutations: TaskMutations = useMemo(
+    () => ({
+      addTask,
+      updateTask,
+      moveTask,
+      addTaskComment,
+      importTrelloTasks,
+    }),
+    [addTask, updateTask, moveTask, addTaskComment, importTrelloTasks],
+  );
 
   const toolbar = useAsyncAction();
   const openAction = useAsyncAction();
@@ -66,6 +106,8 @@ function App() {
     canZoomOut,
   } = useUiZoom();
   const { title: appTitle, setTitle: setAppTitle } = useAppTitle();
+  const [tab, setTab] = useState<AppTab>("projects");
+  const [processView, setProcessView] = useState<ProcessView>("cpu");
   const [toolbarAction, setToolbarAction] = useState<ToolbarAction | null>(
     null,
   );
@@ -74,7 +116,16 @@ function App() {
   const [editing, setEditing] = useState<Project | null>(null);
   const [listView, setListView] = useState<"active" | "archive">("active");
   const [archiveTarget, setArchiveTarget] = useState<Project | null>(null);
+  const [boardProjectId, setBoardProjectId] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+
+  const boardProject = useMemo(
+    () =>
+      boardProjectId
+        ? (projects.find((p) => p.id === boardProjectId) ?? null)
+        : null,
+    [boardProjectId, projects],
+  );
 
   const filtered = useMemo(() => {
     const byArchive = projects.filter((p) =>
@@ -249,7 +300,7 @@ function App() {
         const next = await refreshGithubStatuses();
         replaceAll(next);
       },
-      { loading: "Refreshing GitHub status…", success: "Statuses updated" },
+      { loading: "Refreshing projects…", success: "Projects updated" },
     );
   }
 
@@ -276,6 +327,24 @@ function App() {
         await openPath(path);
       },
       { loading: "Opening…", success: "Opened" },
+    );
+    setRowBusy(null);
+  }
+
+  async function handleRun(project: Project) {
+    if (!project.localPath) {
+      openAction.setFeedback({
+        kind: "error",
+        message: "Set a local path before running.",
+      });
+      return;
+    }
+    setRowBusy({ id: project.id, kind: "run" });
+    await openAction.run(
+      async () => {
+        await runProject(project.localPath!);
+      },
+      { loading: "Starting…", success: "Running" },
     );
     setRowBusy(null);
   }
@@ -322,191 +391,297 @@ function App() {
 
   return (
     <div className="app-shell" data-layout={layout}>
-      <AppChrome
-        title={appTitle}
-        onTitleChange={setAppTitle}
-        refreshSlot={
-          <button
-            type="button"
-            className="icon-btn"
-            onClick={() => void handleRefreshStatuses()}
-            disabled={toolbar.busy}
-            aria-busy={toolbarAction === "refresh"}
-            aria-label="Refresh GitHub statuses"
-            title="Refresh GitHub statuses"
-          >
-            {toolbarAction === "refresh" ? <Spinner size="sm" /> : "↻"}
-          </button>
-        }
-        zoomSlot={
-          <ZoomControls
-            zoom={zoom}
-            canZoomIn={canZoomIn}
-            canZoomOut={canZoomOut}
-            onZoomIn={zoomIn}
-            onZoomOut={zoomOut}
-            onReset={resetZoom}
-          />
-        }
-        autostartSlot={
-          <AutostartToggle
-            onFeedback={(kind, message) => {
-              openAction.setFeedback({ kind, message });
-              if (kind === "success") {
-                window.setTimeout(() => {
-                  openAction.setFeedback((f) =>
-                    f.kind === "success"
-                      ? { kind: "idle", message: "" }
-                      : f,
-                  );
-                }, 2500);
-              }
-            }}
-          />
-        }
-        saveSlot={
-          saving ? (
-            <span className="save-pill is-busy" aria-live="polite">
-              <Spinner size="sm" />
-              Saving…
-            </span>
-          ) : null
-        }
-      />
-
-      <main className="main">
-        <header className="page-header">
-          <div className="toolbar command-bar">
-            <div className="view-toggle" role="group" aria-label="Project list">
+      <MetricsChromeProvider>
+        <AppChrome
+          title={appTitle}
+          onTitleChange={setAppTitle}
+          glanceSlot={<MetricsGlanceSlot />}
+          liveSlot={<MetricsLiveSlot />}
+          refreshSlot={
+            tab === "projects" ? (
               <button
                 type="button"
-                className={listView === "active" ? "is-active" : undefined}
-                aria-pressed={listView === "active"}
-                onClick={() => setListView("active")}
-              >
-                Active
-              </button>
-              <button
-                type="button"
-                className={listView === "archive" ? "is-active" : undefined}
-                aria-pressed={listView === "archive"}
-                onClick={() => setListView("archive")}
-              >
-                Archive{archivedCount > 0 ? ` (${archivedCount})` : ""}
-              </button>
-            </div>
-            <label className="search-field">
-              <span className="sr-only">Search projects</span>
-              <input
-                ref={searchRef}
-                type="search"
-                placeholder="Search projects… (/)"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </label>
-            <div className="toolbar-actions">
-              <SyncMenu
-                roots={syncRoots}
-                busy={toolbar.busy}
-                syncing={toolbarAction === "sync"}
+                className="icon-btn"
+                onClick={() => void handleRefreshStatuses()}
                 disabled={toolbar.busy}
-                onSyncAll={() => void handleSyncAllParents()}
-                onSync={(path) => void handleSyncParent(path)}
-                onAddRoot={() => void handleAddSyncRoot()}
-                onRemoveRoot={(path) => void handleRemoveSyncRoot(path)}
-              />
-              <ImportMenu
-                busy={toolbar.busy}
-                busyKind={importBusy}
-                disabled={toolbar.busy}
-                onImportHub={() => void handleImportUnityHub()}
-                onImportVcc={() => void handleImportVcc()}
-                onImportGithub={() => void handleImportGithub()}
-              />
-              <button
-                type="button"
-                className="btn-primary toolbar-add"
-                disabled={toolbar.busy}
-                aria-busy={toolbarAction === "add"}
-                onClick={() => void handleAddFolder()}
+                aria-busy={toolbarAction === "refresh"}
+                aria-label="Refresh GitHub statuses"
+                title="Refresh GitHub statuses"
               >
-                {toolbarAction === "add" ? (
-                  <span className="btn-busy-label">
-                    <Spinner size="sm" />
-                    Adding…
-                  </span>
-                ) : (
-                  "+ Add project"
-                )}
+                {toolbarAction === "refresh" ? <Spinner size="sm" /> : "↻"}
               </button>
-            </div>
-          </div>
-        </header>
-
-        <ActionFeedback
-          feedback={
-            toolbar.feedback.kind !== "idle"
-              ? toolbar.feedback
-              : openAction.feedback
+            ) : null
           }
-          onDismiss={() => {
-            toolbar.clear();
-            openAction.clear();
-            setError(null);
-          }}
+          zoomSlot={
+            <ZoomControls
+              zoom={zoom}
+              canZoomIn={canZoomIn}
+              canZoomOut={canZoomOut}
+              onZoomIn={zoomIn}
+              onZoomOut={zoomOut}
+              onReset={resetZoom}
+            />
+          }
+          saveSlot={
+            saving ? (
+              <span className="save-pill is-busy" aria-live="polite">
+                <Spinner size="sm" />
+                Saving…
+              </span>
+            ) : null
+          }
         />
-        {error && (
-          <div className="feedback feedback-error" role="alert">
-            {error}
-            <button
-              type="button"
-              className="btn-ghost"
-              onClick={() => setError(null)}
-            >
-              Dismiss
-            </button>
-          </div>
-        )}
+      </MetricsChromeProvider>
 
-        {loading ? (
-          <ProjectsSkeleton />
-        ) : (
-          <ProjectsTable
-            projects={filtered}
-            layout={layout}
-            busyId={rowBusy?.id ?? null}
-            busyAction={rowBusy?.kind ?? null}
-            archivedView={listView === "archive"}
-            emptyMessage={
-              listView === "archive"
-                ? "No archived projects."
-                : "No projects yet."
-            }
-            emptyHint={
-              listView === "archive"
-                ? "Archived projects appear here and can be restored anytime."
-                : "Add a local folder, Sync a parent, or import from Hub, VCC, or GitHub."
-            }
-            onAdd={
-              listView === "active"
-                ? () => void handleAddFolder()
-                : undefined
-            }
-            addBusy={toolbarAction === "add"}
-            addDisabled={toolbar.busy}
-            onReorder={reorder}
-            onToggleFavorite={toggleFavorite}
-            onPriorityChange={setPriority}
-            onCategoryChange={setCategory}
-            onStatusChange={setStatus}
-            onOpen={(p) => void handleOpen(p)}
-            onReveal={(p) => void handleReveal(p)}
-            onEdit={setEditing}
-            onArchive={handleArchiveRequest}
-            onRestore={handleRestore}
-          />
-        )}
+      <nav className="app-tabs" role="tablist" aria-label="Sections">
+        {APP_TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            id={`tab-${t.id}`}
+            className={tab === t.id ? "app-tab is-active" : "app-tab"}
+            aria-selected={tab === t.id}
+            aria-controls={`panel-${t.id}`}
+            tabIndex={tab === t.id ? 0 : -1}
+            onClick={() => {
+              setTab(t.id);
+              if (t.id !== "projects") setBoardProjectId(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+              e.preventDefault();
+              const i = APP_TABS.findIndex((x) => x.id === tab);
+              const next =
+                e.key === "ArrowRight"
+                  ? APP_TABS[(i + 1) % APP_TABS.length]
+                  : APP_TABS[(i - 1 + APP_TABS.length) % APP_TABS.length];
+              setTab(next.id);
+              if (next.id !== "projects") setBoardProjectId(null);
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </nav>
+
+      <main
+        className={
+          tab === "projects" ? "main" : "main main--monitor"
+        }
+      >
+        {tab === "projects" ? (
+          <div
+            className="tab-panel"
+            role="tabpanel"
+            id="panel-projects"
+            aria-labelledby="tab-projects"
+          >
+            {boardProject ? (
+              <KanbanBoard
+                project={boardProject}
+                allTasks={tasks}
+                mutations={taskMutations}
+                onBack={() => setBoardProjectId(null)}
+              />
+            ) : (
+              <>
+                <header className="page-header">
+                  <div className="toolbar command-bar">
+                    <div
+                      className="view-toggle"
+                      role="group"
+                      aria-label="Project list"
+                    >
+                      <button
+                        type="button"
+                        className={
+                          listView === "active" ? "is-active" : undefined
+                        }
+                        aria-pressed={listView === "active"}
+                        onClick={() => setListView("active")}
+                      >
+                        Active
+                      </button>
+                      <button
+                        type="button"
+                        className={
+                          listView === "archive" ? "is-active" : undefined
+                        }
+                        aria-pressed={listView === "archive"}
+                        onClick={() => setListView("archive")}
+                      >
+                        Archive
+                        {archivedCount > 0 ? ` (${archivedCount})` : ""}
+                      </button>
+                    </div>
+                    <label className="search-field">
+                      <span className="sr-only">Search projects</span>
+                      <input
+                        ref={searchRef}
+                        type="search"
+                        placeholder="Search projects… (/)"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                      />
+                    </label>
+                    <div className="toolbar-actions">
+                      <SyncMenu
+                        roots={syncRoots}
+                        busy={toolbar.busy}
+                        syncing={toolbarAction === "sync"}
+                        disabled={toolbar.busy}
+                        onSyncAll={() => void handleSyncAllParents()}
+                        onSync={(path) => void handleSyncParent(path)}
+                        onAddRoot={() => void handleAddSyncRoot()}
+                        onRemoveRoot={(path) =>
+                          void handleRemoveSyncRoot(path)
+                        }
+                      />
+                      <ImportMenu
+                        busy={toolbar.busy}
+                        busyKind={importBusy}
+                        disabled={toolbar.busy}
+                        onImportHub={() => void handleImportUnityHub()}
+                        onImportVcc={() => void handleImportVcc()}
+                        onImportGithub={() => void handleImportGithub()}
+                      />
+                      <button
+                        type="button"
+                        className="btn-primary toolbar-add"
+                        disabled={toolbar.busy}
+                        aria-busy={toolbarAction === "add"}
+                        onClick={() => void handleAddFolder()}
+                      >
+                        {toolbarAction === "add" ? (
+                          <span className="btn-busy-label">
+                            <Spinner size="sm" />
+                            Adding…
+                          </span>
+                        ) : (
+                          "+ Add project"
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </header>
+
+                <ActionFeedback
+                  feedback={
+                    toolbar.feedback.kind !== "idle"
+                      ? toolbar.feedback
+                      : openAction.feedback
+                  }
+                  onDismiss={() => {
+                    toolbar.clear();
+                    openAction.clear();
+                    setError(null);
+                  }}
+                />
+                {error && (
+                  <div className="feedback feedback-error" role="alert">
+                    {error}
+                    <button
+                      type="button"
+                      className="btn-ghost"
+                      onClick={() => setError(null)}
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                )}
+
+                {loading ? (
+                  <ProjectsSkeleton />
+                ) : (
+                  <ProjectsTable
+                    projects={filtered}
+                    layout={layout}
+                    busyId={rowBusy?.id ?? null}
+                    busyAction={rowBusy?.kind ?? null}
+                    archivedView={listView === "archive"}
+                    emptyMessage={
+                      listView === "archive"
+                        ? "No archived projects."
+                        : "No projects yet."
+                    }
+                    emptyHint={
+                      listView === "archive"
+                        ? "Archived projects appear here and can be restored anytime."
+                        : "Add a local folder, Sync a parent, or import from Hub, VCC, or GitHub."
+                    }
+                    onAdd={
+                      listView === "active"
+                        ? () => void handleAddFolder()
+                        : undefined
+                    }
+                    addBusy={toolbarAction === "add"}
+                    addDisabled={toolbar.busy}
+                    onReorder={reorder}
+                    onToggleFavorite={toggleFavorite}
+                    onPriorityChange={setPriority}
+                    onCategoryChange={setCategory}
+                    onStatusChange={setStatus}
+                    onOpenBoard={(p) => setBoardProjectId(p.id)}
+                    onOpen={(p) => void handleOpen(p)}
+                    onRun={(p) => void handleRun(p)}
+                    onReveal={(p) => void handleReveal(p)}
+                    onEdit={setEditing}
+                    onArchive={handleArchiveRequest}
+                    onRestore={handleRestore}
+                  />
+                )}
+              </>
+            )}
+          </div>
+        ) : null}
+
+        {tab === "overview" ? (
+          <div
+            className="monitor-view tab-panel"
+            role="tabpanel"
+            id="panel-overview"
+            aria-labelledby="tab-overview"
+          >
+            <OverviewTab />
+          </div>
+        ) : null}
+
+        {tab === "processes" ? (
+          <div
+            className="monitor-view tab-panel"
+            role="tabpanel"
+            id="panel-processes"
+            aria-labelledby="tab-processes"
+          >
+            <ProcessesHub
+              processView={processView}
+              onProcessViewChange={setProcessView}
+            />
+          </div>
+        ) : null}
+
+        {tab === "fuel" ? (
+          <div
+            className="monitor-view tab-panel"
+            role="tabpanel"
+            id="panel-fuel"
+            aria-labelledby="tab-fuel"
+          >
+            <FuelTab />
+          </div>
+        ) : null}
+
+        {tab === "settings" ? (
+          <div
+            className="monitor-view tab-panel"
+            role="tabpanel"
+            id="panel-settings"
+            aria-labelledby="tab-settings"
+          >
+            <SettingsPanel />
+          </div>
+        ) : null}
       </main>
 
       <ProjectEditModal

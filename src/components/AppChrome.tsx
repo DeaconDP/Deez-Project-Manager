@@ -4,19 +4,21 @@ import deezLogo from "../assets/deez-logo.png";
 interface Props {
   title: string;
   onTitleChange: (next: string) => void;
+  glanceSlot?: React.ReactNode;
+  liveSlot?: React.ReactNode;
   refreshSlot: React.ReactNode;
   zoomSlot: React.ReactNode;
-  autostartSlot?: React.ReactNode;
   saveSlot: React.ReactNode;
 }
 
-/** Slim top brand strip — brand + utilities. */
+/** Slim top brand strip — brand + metrics glance + utilities. */
 export function AppChrome({
   title,
   onTitleChange,
+  glanceSlot,
+  liveSlot,
   refreshSlot,
   zoomSlot,
-  autostartSlot,
   saveSlot,
 }: Props) {
   const [editing, setEditing] = useState(false);
@@ -117,10 +119,13 @@ export function AppChrome({
           </p>
         </div>
       </div>
+      {glanceSlot ? (
+        <div className="app-chrome-glance">{glanceSlot}</div>
+      ) : null}
       <div className="app-chrome-utils">
+        {liveSlot}
         {refreshSlot}
         {zoomSlot}
-        {autostartSlot}
         {saveSlot}
       </div>
     </header>

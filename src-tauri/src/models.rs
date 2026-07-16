@@ -95,12 +95,58 @@ pub struct Project {
     pub notes: String,
     #[serde(default)]
     pub tools: Vec<String>,
+    #[serde(default)]
+    pub has_run_script: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agency: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub client: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub year: Option<i32>,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum KanbanColumn {
+    Backlog,
+    Priority,
+    Doing,
+    Testing,
+    Done,
+}
+
+impl Default for KanbanColumn {
+    fn default() -> Self {
+        KanbanColumn::Backlog
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskComment {
+    pub id: String,
+    pub body: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Task {
+    pub id: String,
+    pub project_id: String,
+    pub title: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub column: KanbanColumn,
+    #[serde(default)]
+    pub priority: Priority,
+    pub sort_index: i32,
+    #[serde(default)]
+    pub comments: Vec<TaskComment>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trello_card_id: Option<String>,
+    pub created_at: String,
     pub updated_at: String,
 }
 
@@ -111,6 +157,8 @@ pub struct ProjectStore {
     pub projects: Vec<Project>,
     #[serde(default)]
     pub sync_roots: Vec<String>,
+    #[serde(default)]
+    pub tasks: Vec<Task>,
 }
 
 impl Default for ProjectStore {
@@ -119,6 +167,7 @@ impl Default for ProjectStore {
             version: 1,
             projects: Vec::new(),
             sync_roots: Vec::new(),
+            tasks: Vec::new(),
         }
     }
 }
@@ -135,6 +184,8 @@ pub struct ProbeResult {
     pub github_repo: Option<String>,
     #[serde(default)]
     pub tools: Vec<String>,
+    #[serde(default)]
+    pub has_run_script: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

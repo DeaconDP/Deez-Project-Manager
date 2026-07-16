@@ -1,18 +1,60 @@
 mod github;
 mod hub_vcc;
+mod metrics;
 mod models;
+mod net;
 mod project_fs;
+mod scheduler;
+mod spikes;
 mod store;
+mod types;
+mod usage;
+mod usb;
+mod win_cmd;
 
 use models::{
     GithubRepo, GithubStatus, ImportResult, Platform, Priority, ProbeResult, Project, ProjectStore,
 };
+use scheduler::{run_latency_suite, start_scheduler, SamplerState};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use tauri::AppHandle;
 use tauri_plugin_dialog::{DialogExt, FilePath};
+use types::{LatencyResult, MetricsSnapshot, SpikeEvent};
+use usage::{
+    fuel_clear_credential, fuel_connect, fuel_get_settings, fuel_get_snapshot, fuel_refresh,
+    fuel_save_settings, fuel_set_credential, fuel_test, start_fuel_scheduler, FuelState,
+};
+use usb::model::UsbDevice;
+use usb::watch::{start_watcher, update_fingerprint};
+use usb::{enumerate, get_device};
+
+struct MonitorState {
+    sampler: Arc<SamplerState>,
+    last_usb_fingerprint: Arc<Mutex<String>>,
+    usb_watch_enabled: Arc<AtomicBool>,
+}
 
 #[tauri::command]
 fn get_projects(app: AppHandle) -> Result<ProjectStore, String> {
-    store::load_store(&app)
+    let mut store = store::load_store(&app)?;
+    // Heal stuck engine labels (e.g. Unreal rows force-labeled Unity) on load.
+    let mut dirty = hub_vcc::reprobe_all_engines(&mut store.projects);
+    for project in &mut store.projects {
+        let empty_path = project
+            .local_path
+            .as_ref()
+            .map(|p| p.trim().is_empty())
+            .unwrap_or(true);
+        if empty_path && project.has_run_script {
+            project.has_run_script = false;
+            dirty = true;
+        }
+    }
+    if dirty {
+        store::save_store(&app, &store)?;
+    }
+    Ok(store)
 }
 
 #[tauri::command]
@@ -43,6 +85,24 @@ fn pick_project_folders(app: AppHandle) -> Result<Option<Vec<String>>, String> {
 }
 
 #[tauri::command]
+fn pick_trello_json(app: AppHandle) -> Result<Option<String>, String> {
+    let file = app
+        .dialog()
+        .file()
+        .set_title("Import Trello board JSON")
+        .add_filter("JSON", &["json"])
+        .blocking_pick_file();
+
+    Ok(file.map(|p: FilePath| p.to_string()))
+}
+
+#[tauri::command]
+fn read_text_file(path: String) -> Result<String, String> {
+    std::fs::read_to_string(&path)
+        .map_err(|e| format!("FILE-001: failed to read {path}: {e}"))
+}
+
+#[tauri::command]
 fn probe_project(path: String) -> ProbeResult {
     project_fs::probe_project(&path)
 }
@@ -64,6 +124,11 @@ fn open_path(path: String) -> Result<(), String> {
 #[tauri::command]
 fn open_unity_project(path: String, unity_version: Option<String>) -> Result<(), String> {
     project_fs::open_unity_project(&path, unity_version.as_deref())
+}
+
+#[tauri::command]
+fn run_project(path: String) -> Result<(), String> {
+    project_fs::run_project(&path)
 }
 
 #[tauri::command]
@@ -120,6 +185,7 @@ fn import_github_repos(app: AppHandle, username: Option<String>) -> Result<Impor
             archived: false,
             notes: repo.description.unwrap_or_default(),
             tools: Vec::new(),
+            has_run_script: false,
             agency: None,
             client: None,
             year: None,
@@ -157,12 +223,18 @@ fn import_discovered_list(
 
     for raw in discovered {
         let mut discovered = hub_vcc::enrich_discovered(raw);
-        if force_unity {
+        // Unity Hub / VCC lists are assumed Unity, but a definitive `.uproject`
+        // (Unreal) from the filesystem probe must win.
+        if force_unity && discovered.platform != Platform::Unreal {
             discovered.platform = Platform::Unity;
         }
         let key = hub_vcc::normalize_path_key(&discovered.path);
         if existing_paths.contains(&key) {
-            skipped += 1;
+            if hub_vcc::try_refresh_existing_by_path(&mut store.projects, &discovered) {
+                updated += 1;
+            } else {
+                skipped += 1;
+            }
             continue;
         }
         if hub_vcc::try_link_existing(&mut store.projects, &discovered) {
@@ -219,6 +291,7 @@ fn list_immediate_child_dirs(parent: &str) -> Result<Vec<hub_vcc::DiscoveredProj
             last_modified: None,
             platform: Platform::Other,
             tools: Vec::new(),
+            has_run_script: false,
         });
     }
 
@@ -335,6 +408,7 @@ fn import_local_folders(app: AppHandle, paths: Vec<String>) -> Result<ImportResu
             last_modified: None,
             platform: Platform::Other,
             tools: Vec::new(),
+            has_run_script: false,
         });
     }
     import_discovered_list(&app, discovered, false)
@@ -343,6 +417,7 @@ fn import_local_folders(app: AppHandle, paths: Vec<String>) -> Result<ImportResu
 #[tauri::command]
 fn refresh_github_statuses(app: AppHandle) -> Result<Vec<Project>, String> {
     let mut store = store::load_store(&app)?;
+    hub_vcc::reprobe_all_engines(&mut store.projects);
     for project in &mut store.projects {
         if project.github_url.is_none() && project.github_repo.is_none() {
             project.github_status = GithubStatus::None;
@@ -377,8 +452,77 @@ fn guess_platform(language: Option<&str>, name: &str) -> Platform {
     }
 }
 
+#[tauri::command]
+fn get_snapshot(state: tauri::State<'_, MonitorState>) -> MetricsSnapshot {
+    state.sampler.snapshot()
+}
+
+#[tauri::command]
+fn set_sampler_pace(state: tauri::State<'_, MonitorState>, pace: String) -> Result<(), String> {
+    match pace.as_str() {
+        "idle" => state.sampler.set_idle(true),
+        "active" => state.sampler.set_idle(false),
+        other => return Err(format!("unknown sampler pace: {other}")),
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn set_usb_watch(state: tauri::State<'_, MonitorState>, enabled: bool) {
+    state
+        .usb_watch_enabled
+        .store(enabled, Ordering::Relaxed);
+}
+
+#[tauri::command]
+fn list_spikes(
+    state: tauri::State<'_, MonitorState>,
+    limit: Option<usize>,
+) -> Result<Vec<SpikeEvent>, String> {
+    state.sampler.spikes.list(limit.unwrap_or(100))
+}
+
+#[tauri::command]
+fn clear_spikes(state: tauri::State<'_, MonitorState>) -> Result<(), String> {
+    state.sampler.spikes.clear()
+}
+
+#[tauri::command]
+fn run_latency_probes() -> Vec<LatencyResult> {
+    run_latency_suite()
+}
+
+#[tauri::command]
+fn get_topology(state: tauri::State<'_, MonitorState>) -> Result<usb::model::UsbTopology, String> {
+    let topo = enumerate()?;
+    update_fingerprint(&state.last_usb_fingerprint, &topo);
+    Ok(topo)
+}
+
+#[tauri::command]
+fn get_device_detail(state: tauri::State<'_, MonitorState>, id: String) -> Result<UsbDevice, String> {
+    let topo = enumerate()?;
+    update_fingerprint(&state.last_usb_fingerprint, &topo);
+    get_device(&topo, &id).ok_or_else(|| format!("USB-001: Device not found: {id}"))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let sampler = match SamplerState::new() {
+        Ok(s) => Arc::new(s),
+        Err(e) => {
+            eprintln!("Deez Project Manager: failed to init metrics sampler: {e}");
+            panic!("failed to init sampler: {e}");
+        }
+    };
+    let fingerprint = Arc::new(Mutex::new(String::new()));
+    let fp_for_watch = fingerprint.clone();
+    let usb_watch_enabled = Arc::new(AtomicBool::new(false));
+    let usb_enabled_for_watch = usb_watch_enabled.clone();
+    let sampler_for_sched = sampler.clone();
+    let fuel_state = FuelState::new();
+    let fuel_for_sched = fuel_state.clone();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_window_state::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
@@ -387,15 +531,24 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
+        .manage(MonitorState {
+            sampler,
+            last_usb_fingerprint: fingerprint,
+            usb_watch_enabled,
+        })
+        .manage(fuel_state)
         .invoke_handler(tauri::generate_handler![
             get_projects,
             save_projects,
             pick_project_folder,
             pick_project_folders,
+            pick_trello_json,
+            read_text_file,
             probe_project,
             get_git_status,
             open_path,
             open_unity_project,
+            run_project,
             list_github_repos,
             import_github_repos,
             import_unity_hub,
@@ -406,7 +559,30 @@ pub fn run() {
             remove_sync_root,
             sync_parent_folder,
             sync_all_parent_folders,
+            get_snapshot,
+            set_sampler_pace,
+            list_spikes,
+            clear_spikes,
+            run_latency_probes,
+            get_topology,
+            get_device_detail,
+            set_usb_watch,
+            fuel_get_settings,
+            fuel_save_settings,
+            fuel_refresh,
+            fuel_get_snapshot,
+            fuel_connect,
+            fuel_test,
+            fuel_set_credential,
+            fuel_clear_credential,
         ])
+        .setup(move |app| {
+            let handle = app.handle().clone();
+            start_scheduler(handle.clone(), sampler_for_sched);
+            start_watcher(handle.clone(), fp_for_watch, usb_enabled_for_watch);
+            start_fuel_scheduler(handle, fuel_for_sched);
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

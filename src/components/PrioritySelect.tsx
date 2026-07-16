@@ -8,7 +8,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import { createPortal } from "react-dom";
-import { PRIORITIES, type Priority } from "../types";
+import { PRIORITIES, priorityLabel, type Priority } from "../types";
 
 interface Props {
   value: Priority;
@@ -19,6 +19,8 @@ interface Props {
   compact?: boolean;
   disabled?: boolean;
   id?: string;
+  /** Show Default as Opt (kanban tasks). */
+  optLabel?: boolean;
 }
 
 type MenuPos = { top: number; left: number; minWidth: number; openUp: boolean };
@@ -30,6 +32,7 @@ export function PrioritySelect({
   compact = false,
   disabled = false,
   id,
+  optLabel = false,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(() =>
@@ -202,7 +205,9 @@ export function PrioritySelect({
                       className="priority-picker-swatch"
                       aria-hidden="true"
                     />
-                    <span className="priority-picker-option-label">{p}</span>
+                    <span className="priority-picker-option-label">
+                      {priorityLabel(p, optLabel)}
+                    </span>
                   </button>
                 </li>
               );
@@ -232,7 +237,9 @@ export function PrioritySelect({
         onClick={() => setOpen((v) => !v)}
         onKeyDown={onTriggerKeyDown}
       >
-        <span className="priority-picker-value">{value}</span>
+        <span className="priority-picker-value">
+          {priorityLabel(value, optLabel)}
+        </span>
         <span className="priority-picker-caret" aria-hidden="true">
           ▾
         </span>

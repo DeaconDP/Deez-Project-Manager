@@ -12,6 +12,7 @@
   --accent-2: #ff3d81;
   --border: #2a2e3a;
   --danger: #ff5c7a;
+  --load-over: #ff8c3a;
   --radius: 2px;
   --space-1: 4px;
   --space-2: 8px;
@@ -22,8 +23,8 @@
   --font-body: "IBM Plex Sans", "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", "Consolas", monospace;
   --prio-default: #8b90a0;
-  --prio-low: #4ea1ff;
-  --prio-med: #3dd68c;
+  --prio-low: #5f7fa8;
+  --prio-med: #5f9574;
   --prio-high: #b8f515;
   --prio-crit: #ffd447;
   --cat-vr: #00e5c0;
@@ -32,6 +33,7 @@
   --cat-web: #ff9f1c;
   --cat-game: #9dff57;
   --cat-client: #e8d48b;
+  --cat-bot: #c084fc;
   --cat-backup: #7a8b9c;
   --cat-other: #8b90a0;
   --status-urgent: #ff5c7a;
@@ -42,6 +44,7 @@
   --status-maintaining: #00e5c0;
   --status-done: #3dd68c;
   --status-broken: #ff6b3d;
+  --status-delete: #9a6b78;
   --grid-line: rgba(42, 46, 58, 0.45);
 }
 
@@ -58,6 +61,44 @@ body,
   margin: 0;
   max-width: 100%;
   overflow-x: clip;
+}
+
+/* One scrollbar language app-wide (match Projects table pane) */
+html {
+  color-scheme: dark;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border: 2px solid transparent;
+  border-radius: var(--radius);
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 body {
@@ -170,6 +211,7 @@ button[aria-busy="true"]:disabled {
   display: flex;
   flex-direction: column;
   min-height: 100%;
+  height: 100%;
   max-width: 100%;
   overflow-x: clip;
   padding:
@@ -181,9 +223,9 @@ button[aria-busy="true"]:disabled {
 
 /* —— Brand chrome —— */
 .app-chrome {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-3);
   padding: 10px 20px;
   border-bottom: 1px solid var(--border);
@@ -193,6 +235,167 @@ button[aria-busy="true"]:disabled {
   top: 0;
   z-index: 30;
 }
+
+.app-chrome-brand {
+  justify-self: start;
+}
+
+.app-chrome-glance {
+  justify-self: center;
+  min-width: 0;
+  display: flex;
+  justify-content: center;
+}
+
+.app-chrome-utils {
+  justify-self: end;
+}
+
+.app-chrome-glance .glance-pulse {
+  margin: 0;
+  justify-content: center;
+  gap: 0.35rem 0.85rem;
+  font-size: 0.78rem;
+}
+
+.glance-pulse--with-fuel {
+  row-gap: 0.35rem;
+}
+
+.glance-pulse__item--fuel .glance-pulse__label {
+  color: color-mix(in srgb, var(--text) 88%, var(--muted));
+}
+
+.chrome-live {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.chrome-live--error {
+  color: var(--danger);
+}
+
+.glance-pulse {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 1rem;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+}
+
+.glance-pulse__item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.28rem;
+  white-space: nowrap;
+  color: var(--muted);
+  min-width: 0;
+}
+
+.glance-pulse__mark {
+  color: var(--muted);
+  line-height: 1;
+}
+
+.glance-pulse__label {
+  letter-spacing: 0.04em;
+}
+
+.glance-pulse__value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.glance-pulse__value--tier-low {
+  color: var(--prio-low);
+}
+
+.glance-pulse__value--tier-mid {
+  color: var(--prio-med);
+}
+
+.glance-pulse__value--tier-high {
+  color: var(--prio-crit);
+}
+
+.glance-pulse__value--tier-over {
+  color: var(--load-over);
+}
+
+.app-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.25rem;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(5, 6, 8, 0.72);
+  position: sticky;
+  top: 53px;
+  z-index: 25;
+  flex-shrink: 0;
+}
+
+.app-tab {
+  appearance: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  padding: 0.45rem 0.65rem 0.5rem;
+  margin-bottom: -1px;
+  cursor: pointer;
+  border-radius: var(--radius) var(--radius) 0 0;
+  font-size: 0.85rem;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.app-tab:hover {
+  color: var(--text);
+  background: var(--accent-dim);
+}
+
+.app-tab.is-active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.app-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.tab-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.main--monitor {
+  max-width: none;
+  padding-top: var(--space-3);
+  overflow: hidden;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 
 .app-chrome-brand {
   display: flex;
@@ -339,6 +542,7 @@ button[aria-busy="true"]:disabled {
 
 .main {
   flex: 1;
+  min-height: 0;
   padding: var(--space-4) 20px var(--space-5);
   min-width: 0;
   display: flex;
@@ -494,6 +698,40 @@ button[aria-busy="true"]:disabled {
 
 .btn-primary:hover:not(:disabled) {
   filter: brightness(1.06);
+}
+
+.project-action-run,
+.project-action-open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  min-width: 4.25rem;
+  text-align: center;
+}
+
+.project-action-run {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 72%, var(--border));
+}
+
+.project-action-run:hover:not(:disabled),
+.project-action-run[aria-busy="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #04130f;
+}
+
+.project-action-open {
+  color: var(--prio-low);
+  border-color: color-mix(in srgb, var(--prio-low) 72%, var(--border));
+}
+
+.project-action-open:hover:not(:disabled),
+.project-action-open[aria-busy="true"] {
+  background: var(--prio-low);
+  border-color: var(--prio-low);
+  color: #081019;
 }
 
 .btn-primary.btn-danger {
@@ -911,6 +1149,8 @@ button[aria-busy="true"]:disabled {
 }
 
 .table-wrap {
+  flex: 1;
+  min-height: 0;
   border: 1px solid var(--border);
   background: rgba(18, 20, 28, 0.72);
   overflow-x: clip;
@@ -921,12 +1161,22 @@ button[aria-busy="true"]:disabled {
 /*
  * CSS-grid div “table”: each .project-row is a real box so dnd-kit FLIP
  * translates compose correctly (native <tr> does not).
+ * Tracks must use definite sizes only — `auto`/`max-content` lets Actions
+ * grow per row and throws the Name `fr` track out of alignment.
  */
 .projects-table {
+  --col-drag: 3.75rem;
+  --col-fav: 32px;
+  --col-platform: 5.5rem;
+  --col-priority: 5.25rem;
+  --col-status: 6rem;
+  --col-category: 5rem;
+  --col-github: 5.5rem;
+  --col-actions: 8.5rem;
   --cols:
-    3.75rem 32px minmax(4.5rem, 6.5rem) minmax(0, 1.8fr) minmax(4.25rem, 5.5rem)
-    minmax(4.25rem, 6rem) minmax(3.75rem, 5rem) minmax(4rem, 7rem)
-    minmax(6.5rem, auto);
+    var(--col-drag) var(--col-fav) var(--col-platform) minmax(0, 1.8fr)
+    var(--col-priority) var(--col-status) var(--col-category) var(--col-github)
+    var(--col-actions);
   display: block;
   width: 100%;
   min-width: 0;
@@ -1013,12 +1263,12 @@ button[aria-busy="true"]:disabled {
 
 .project-row.priority-row-low {
   box-shadow: inset 3px 0 0 var(--prio-low);
-  background: rgba(78, 161, 255, 0.05);
+  background: rgba(95, 127, 168, 0.03);
 }
 
 .project-row.priority-row-med {
   box-shadow: inset 3px 0 0 var(--prio-med);
-  background: rgba(61, 214, 140, 0.05);
+  background: rgba(95, 149, 116, 0.03);
 }
 
 .project-row.priority-row-high {
@@ -1042,6 +1292,17 @@ button[aria-busy="true"]:disabled {
 
 .col-actions {
   white-space: nowrap;
+}
+
+.project-row .col-actions {
+  justify-content: flex-end;
+}
+
+.col-priority,
+.col-status,
+.col-category,
+.col-github {
+  min-width: 0;
 }
 
 .project-actions {
@@ -1350,15 +1611,15 @@ button[aria-busy="true"]:disabled {
 }
 
 .priority-low {
-  border-color: var(--prio-low);
-  color: #a8cfff;
-  background: rgba(78, 161, 255, 0.14);
+  border-color: color-mix(in srgb, var(--prio-low) 70%, var(--border));
+  color: #8fa6c4;
+  background: rgba(95, 127, 168, 0.08);
 }
 
 .priority-med {
-  border-color: var(--prio-med);
-  color: #8fefb8;
-  background: rgba(61, 214, 140, 0.12);
+  border-color: color-mix(in srgb, var(--prio-med) 70%, var(--border));
+  color: #8fb89a;
+  background: rgba(95, 149, 116, 0.08);
 }
 
 .priority-high {
@@ -1407,6 +1668,12 @@ button[aria-busy="true"]:disabled {
   border-color: var(--cat-client);
   color: #f0e4b8;
   background: rgba(232, 212, 139, 0.12);
+}
+
+.badge.category-bot {
+  border-color: var(--cat-bot);
+  color: #e0c4ff;
+  background: rgba(192, 132, 252, 0.12);
 }
 
 .badge.category-backup {
@@ -1469,6 +1736,12 @@ button[aria-busy="true"]:disabled {
   background: rgba(255, 107, 61, 0.14);
 }
 
+.badge.status-delete {
+  border-color: var(--status-delete);
+  color: #c9a0aa;
+  background: rgba(154, 107, 120, 0.14);
+}
+
 .gh-status {
   display: inline-flex;
   align-items: center;
@@ -1499,7 +1772,10 @@ button[aria-busy="true"]:disabled {
   color: var(--accent);
 }
 
-.gh-dirty,
+.gh-dirty {
+  color: #b8956c;
+}
+
 .gh-diverged,
 .gh-error {
   color: var(--accent-2);
@@ -1560,7 +1836,9 @@ button[aria-busy="true"]:disabled {
 .modal {
   width: min(560px, calc(100% - 32px));
   max-height: min(90dvh, 800px);
-  overflow: auto;
+  overflow-x: clip;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -1823,15 +2101,15 @@ button[aria-busy="true"]:disabled {
 }
 
 .priority-picker-trigger.priority-low {
-  color: #a8cfff;
-  border-color: color-mix(in srgb, var(--prio-low) 55%, var(--border));
-  background: rgba(78, 161, 255, 0.12);
+  color: #8fa6c4;
+  border-color: color-mix(in srgb, var(--prio-low) 45%, var(--border));
+  background: rgba(95, 127, 168, 0.08);
 }
 
 .priority-picker-trigger.priority-med {
-  color: #8fefb8;
-  border-color: color-mix(in srgb, var(--prio-med) 55%, var(--border));
-  background: rgba(61, 214, 140, 0.1);
+  color: #8fb89a;
+  border-color: color-mix(in srgb, var(--prio-med) 45%, var(--border));
+  background: rgba(95, 149, 116, 0.08);
 }
 
 .priority-picker-trigger.priority-high {
@@ -1902,6 +2180,12 @@ button[aria-busy="true"]:disabled {
   background: rgba(232, 212, 139, 0.1);
 }
 
+.priority-picker-trigger.category-bot {
+  color: #e0c4ff;
+  border-color: color-mix(in srgb, var(--cat-bot) 55%, var(--border));
+  background: rgba(192, 132, 252, 0.1);
+}
+
 .priority-picker-trigger.category-backup {
   color: #b8c6d4;
   border-color: color-mix(in srgb, var(--cat-backup) 55%, var(--border));
@@ -1936,6 +2220,10 @@ button[aria-busy="true"]:disabled {
 
 .priority-picker-option.category-client .priority-picker-swatch {
   background: var(--cat-client);
+}
+
+.priority-picker-option.category-bot .priority-picker-swatch {
+  background: var(--cat-bot);
 }
 
 .priority-picker-option.category-backup .priority-picker-swatch {
@@ -1994,6 +2282,12 @@ button[aria-busy="true"]:disabled {
   background: rgba(255, 107, 61, 0.1);
 }
 
+.priority-picker-trigger.status-delete {
+  color: #c9a0aa;
+  border-color: color-mix(in srgb, var(--status-delete) 55%, var(--border));
+  background: rgba(154, 107, 120, 0.1);
+}
+
 .priority-picker-option.status-urgent .priority-picker-swatch {
   background: var(--status-urgent);
 }
@@ -2024,6 +2318,10 @@ button[aria-busy="true"]:disabled {
 
 .priority-picker-option.status-broken .priority-picker-swatch {
   background: var(--status-broken);
+}
+
+.priority-picker-option.status-delete .priority-picker-swatch {
+  background: var(--status-delete);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2125,7 +2423,75 @@ button[aria-busy="true"]:disabled {
 /* —— Narrow + phone: same table/chrome language as desktop —— */
 .app-shell[data-layout="narrow"] .app-chrome,
 .app-shell[data-layout="phone"] .app-chrome {
+  display: flex;
   padding: 10px 16px;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: space-between;
+}
+
+.app-shell[data-layout="narrow"] .app-chrome-glance,
+.app-shell[data-layout="phone"] .app-chrome-glance {
+  order: 3;
+  flex: 1 1 100%;
+  justify-content: stretch;
+}
+
+.app-shell[data-layout="narrow"] .app-chrome-glance .glance-pulse,
+.app-shell[data-layout="phone"] .app-chrome-glance .glance-pulse {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  width: 100%;
+  gap: 0;
+  font-size: 0.7rem;
+  border: 1px solid var(--border);
+  background: rgba(14, 16, 22, 0.65);
+}
+
+.app-shell[data-layout="narrow"] .app-chrome-glance .glance-pulse--with-fuel,
+.app-shell[data-layout="phone"] .app-chrome-glance .glance-pulse--with-fuel {
+  grid-template-columns: repeat(auto-fit, minmax(4.25rem, 1fr));
+}
+
+.app-shell[data-layout="narrow"] .glance-pulse__item,
+.app-shell[data-layout="phone"] .glance-pulse__item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.12rem;
+  padding: 0.4rem 0.45rem;
+  white-space: normal;
+}
+
+.app-shell[data-layout="narrow"] .glance-pulse__item + .glance-pulse__item,
+.app-shell[data-layout="phone"] .glance-pulse__item + .glance-pulse__item {
+  border-left: 1px solid var(--border);
+}
+
+.app-shell[data-layout="narrow"] .glance-pulse__mark,
+.app-shell[data-layout="phone"] .glance-pulse__mark {
+  display: none;
+}
+
+.app-shell[data-layout="narrow"] .app-tabs,
+.app-shell[data-layout="phone"] .app-tabs {
+  top: auto;
+  padding: 0 12px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.app-shell[data-layout="narrow"] .app-tabs::-webkit-scrollbar,
+.app-shell[data-layout="phone"] .app-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.app-shell[data-layout="narrow"] .app-tab,
+.app-shell[data-layout="phone"] .app-tab {
+  flex: 0 0 auto;
+  min-height: 40px;
+  padding: 0.5rem 0.85rem 0.55rem;
 }
 
 .app-shell[data-layout="phone"] .brand-name {
@@ -2262,7 +2628,7 @@ button[aria-busy="true"]:disabled {
 .app-shell[data-layout="phone"] .project-row.priority-row-low .col-fav,
 .app-shell[data-layout="phone"] .project-row.priority-row-low .col-platform,
 .app-shell[data-layout="phone"] .project-row.priority-row-low .col-name {
-  background: color-mix(in srgb, rgba(78, 161, 255, 0.05) 100%, var(--bg-elevated));
+  background: color-mix(in srgb, rgba(95, 127, 168, 0.03) 100%, var(--bg-elevated));
 }
 
 .app-shell[data-layout="narrow"] .project-row.priority-row-med .col-drag,
@@ -2273,7 +2639,7 @@ button[aria-busy="true"]:disabled {
 .app-shell[data-layout="phone"] .project-row.priority-row-med .col-fav,
 .app-shell[data-layout="phone"] .project-row.priority-row-med .col-platform,
 .app-shell[data-layout="phone"] .project-row.priority-row-med .col-name {
-  background: color-mix(in srgb, rgba(61, 214, 140, 0.05) 100%, var(--bg-elevated));
+  background: color-mix(in srgb, rgba(95, 149, 116, 0.03) 100%, var(--bg-elevated));
 }
 
 .app-shell[data-layout="narrow"] .project-row.priority-row-high .col-drag,
@@ -2315,29 +2681,19 @@ button[aria-busy="true"]:disabled {
   left: 0;
 }
 
-.app-shell[data-layout="narrow"] .projects-table .col-fav {
-  left: 3.75rem;
-}
-
+.app-shell[data-layout="narrow"] .projects-table .col-fav,
 .app-shell[data-layout="phone"] .projects-table .col-fav {
-  left: 3.5rem;
+  left: var(--col-drag);
 }
 
-.app-shell[data-layout="narrow"] .projects-table .col-platform {
-  left: calc(3.75rem + 32px);
-}
-
+.app-shell[data-layout="narrow"] .projects-table .col-platform,
 .app-shell[data-layout="phone"] .projects-table .col-platform {
-  left: calc(3.5rem + 36px);
+  left: calc(var(--col-drag) + var(--col-fav));
 }
 
-.app-shell[data-layout="narrow"] .projects-table .col-name {
-  left: calc(3.75rem + 32px + 5.5rem);
-  box-shadow: 6px 0 10px -8px rgba(0, 0, 0, 0.55);
-}
-
+.app-shell[data-layout="narrow"] .projects-table .col-name,
 .app-shell[data-layout="phone"] .projects-table .col-name {
-  left: calc(3.5rem + 36px + 4.75rem);
+  left: calc(var(--col-drag) + var(--col-fav) + var(--col-platform));
   box-shadow: 6px 0 10px -8px rgba(0, 0, 0, 0.55);
 }
 
@@ -2347,10 +2703,18 @@ button[aria-busy="true"]:disabled {
 }
 
 .app-shell[data-layout="phone"] .projects-table {
+  --col-drag: 3.5rem;
+  --col-fav: 36px;
+  --col-platform: 4.75rem;
+  --col-priority: 4.5rem;
+  --col-status: 5.25rem;
+  --col-category: 4.5rem;
+  --col-github: 5rem;
+  --col-actions: 7.25rem;
   --cols:
-    3.5rem 36px minmax(4rem, 5.5rem) minmax(0, 1.4fr) minmax(3.5rem, 4rem)
-    minmax(3.75rem, 5.25rem) minmax(3.25rem, 4.5rem) minmax(3.5rem, 6rem)
-    minmax(5.5rem, auto);
+    var(--col-drag) var(--col-fav) var(--col-platform) minmax(0, 1.4fr)
+    var(--col-priority) var(--col-status) var(--col-category) var(--col-github)
+    var(--col-actions);
   min-width: 0;
   font-size: 0.85rem;
 }
@@ -2399,4 +2763,377 @@ button[aria-busy="true"]:disabled {
     flex: 1 1 100%;
     max-width: none;
   }
+}
+
+/* —— Kanban board —— */
+.name-board-link {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--radius);
+}
+
+.name-board-link:hover {
+  color: var(--accent);
+}
+
+.name-board-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.kanban {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3, 0.75rem);
+  min-height: 0;
+  flex: 1;
+}
+
+.kanban-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2, 0.5rem);
+}
+
+.kanban-header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 0.5rem);
+  min-width: 0;
+}
+
+.kanban-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kanban-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2, 0.5rem);
+}
+
+.kanban-add-form {
+  --add-control-h: 2.25rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: var(--space-2, 0.5rem) var(--space-3, 0.75rem);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.kanban-add-form > label {
+  display: flex;
+  flex: 1 1 12rem;
+  min-width: 0;
+  align-items: stretch;
+}
+
+.kanban-add-form input,
+.kanban-add-form select,
+.kanban-add-form .btn-primary,
+.kanban-add-form .btn-ghost,
+.kanban-add-form .priority-picker-trigger {
+  box-sizing: border-box;
+  height: var(--add-control-h);
+  min-height: var(--add-control-h);
+  padding: 0 0.7rem;
+  font-size: 0.875rem;
+  line-height: 1.2;
+  border-radius: var(--radius);
+}
+
+.kanban-add-form input,
+.kanban-add-form select {
+  width: 100%;
+  min-width: 0;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: inherit;
+}
+
+.kanban-add-form select {
+  flex: 0 0 8.5rem;
+  width: 8.5rem;
+}
+
+.kanban-add-form .priority-picker {
+  flex: 0 0 5.75rem;
+  width: 5.75rem;
+}
+
+.kanban-add-form .priority-picker.is-compact .priority-picker-trigger {
+  padding: 0 0.55rem;
+  font-size: 0.875rem;
+}
+
+.kanban-add-form .btn-primary,
+.kanban-add-form .btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  transform: none;
+}
+
+.kanban-add-form .btn-primary:hover:not(:disabled),
+.kanban-add-form .btn-ghost:hover:not(:disabled) {
+  transform: none;
+}
+
+.kanban-columns {
+  display: flex;
+  gap: var(--space-2, 0.5rem);
+  align-items: stretch;
+  overflow-x: auto;
+  padding-bottom: var(--space-2, 0.5rem);
+  min-height: 18rem;
+}
+
+.kanban-column {
+  flex: 1 1 11rem;
+  min-width: 11rem;
+  max-width: 18rem;
+  display: flex;
+  flex-direction: column;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.kanban-column.is-over {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.kanban-column-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  padding: 0.5rem 0.65rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.kanban-column-header h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.kanban-column-count {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+.kanban-column-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.5rem;
+  flex: 1;
+  min-height: 0;
+  overflow-x: clip;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.kanban-card {
+  --card-prio: var(--prio-default);
+  background: color-mix(in srgb, var(--card-prio) 22%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--card-prio) 55%, var(--border));
+  border-radius: var(--radius);
+  box-shadow: inset 3px 0 0 var(--card-prio);
+}
+
+.kanban-card.priority-row-default {
+  --card-prio: var(--prio-default);
+}
+
+.kanban-card.priority-row-low {
+  --card-prio: var(--prio-low);
+  background: color-mix(in srgb, var(--card-prio) 10%, var(--surface));
+  border-color: color-mix(in srgb, var(--card-prio) 35%, var(--border));
+}
+
+.kanban-card.priority-row-med {
+  --card-prio: var(--prio-med);
+  background: color-mix(in srgb, var(--card-prio) 12%, var(--surface));
+  border-color: color-mix(in srgb, var(--card-prio) 38%, var(--border));
+}
+
+.kanban-card.priority-row-high {
+  --card-prio: var(--prio-high);
+}
+
+.kanban-card.priority-row-crit {
+  --card-prio: var(--prio-crit);
+}
+
+.kanban-card.is-dragging {
+  opacity: 0.25;
+}
+
+.kanban-card.is-overlay {
+  box-shadow:
+    inset 3px 0 0 var(--card-prio),
+    0 12px 32px rgba(0, 0, 0, 0.55),
+    0 2px 8px rgba(0, 0, 0, 0.35);
+  opacity: 1;
+  cursor: grabbing;
+  transform: scale(1.02);
+  transform-origin: center top;
+}
+
+.kanban-card-open {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.35rem 0.5rem;
+  width: 100%;
+  margin: 0;
+  padding: 0.55rem 0.6rem;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: grab;
+  border-radius: var(--radius);
+}
+
+.kanban-card.is-overlay .kanban-card-open {
+  cursor: grabbing;
+}
+
+.kanban-card-open:hover {
+  background: color-mix(in srgb, var(--card-prio) 14%, transparent);
+}
+
+.kanban-card-open:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.kanban-card-title {
+  flex: 1 1 100%;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.kanban-card-comments {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kanban-column {
+    transition: none;
+  }
+
+  .kanban-card.is-overlay {
+    transform: none;
+  }
+}
+
+.task-detail-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2, 0.5rem);
+}
+
+.task-comments h3 {
+  margin: 0.5rem 0 0.35rem;
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.task-comments-empty {
+  margin: 0 0 0.5rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.task-comment-list {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 12rem;
+  overflow-y: auto;
+}
+
+.task-comment-list li {
+  padding: 0.45rem 0.55rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+
+.task-comment-list time {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--muted);
+  margin-bottom: 0.2rem;
+}
+
+.task-comment-list p {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 0.9rem;
+}
+
+.task-comment-compose {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.task-comment-compose .btn-primary {
+  align-self: flex-start;
+}
+
+.app-shell[data-layout="phone"] .kanban-column {
+  max-width: none;
+  flex: 0 0 78vw;
+}
+
+.app-shell[data-layout="phone"] .task-detail-meta {
+  grid-template-columns: 1fr;
 }

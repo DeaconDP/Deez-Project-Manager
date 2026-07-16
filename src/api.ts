@@ -1,4 +1,4 @@
-import { invoke, isTauri } from "@tauri-apps/api/core";
+import { invoke } from "@tauri-apps/api/core";
 import type {
   GithubStatus,
   ImportResult,
@@ -7,32 +7,9 @@ import type {
   ProjectStore,
 } from "./types";
 
-function assertTauriBridge(cmd: string): void {
+function assertTauriBridge(_cmd: string): void {
   const internals = (window as unknown as { __TAURI_INTERNALS__?: unknown })
     .__TAURI_INTERNALS__;
-  // #region agent log
-  fetch("http://127.0.0.1:7536/ingest/e24ae17c-7642-4e3d-9932-1bb65aa9191e", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Debug-Session-Id": "c528a4",
-    },
-    body: JSON.stringify({
-      sessionId: "c528a4",
-      runId: "invoke-check",
-      hypothesisId: "F",
-      location: "api.ts:assertTauriBridge",
-      message: "Tauri bridge check before invoke",
-      data: {
-        cmd,
-        isTauri: isTauri(),
-        hasInternals: !!internals,
-        userAgent: navigator.userAgent.slice(0, 80),
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
   if (!internals) {
     throw new Error(
       "TAURI-001: Deez Project Manager must run in the desktop app window (npm run tauri dev / run.bat). Do not use a browser tab on :5187 — there is no Tauri IPC there.",
@@ -64,6 +41,14 @@ export async function pickProjectFolders(): Promise<string[] | null> {
   return tauriInvoke<string[] | null>("pick_project_folders");
 }
 
+export async function pickTrelloJson(): Promise<string | null> {
+  return tauriInvoke<string | null>("pick_trello_json");
+}
+
+export async function readTextFile(path: string): Promise<string> {
+  return tauriInvoke<string>("read_text_file", { path });
+}
+
 export async function probeProject(path: string): Promise<ProbeResult> {
   return tauriInvoke<ProbeResult>("probe_project", { path });
 }
@@ -84,6 +69,10 @@ export async function openUnityProject(
     path,
     unityVersion: unityVersion ?? null,
   });
+}
+
+export async function runProject(path: string): Promise<void> {
+  return tauriInvoke("run_project", { path });
 }
 
 export async function importGithubRepos(

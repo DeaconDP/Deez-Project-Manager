@@ -34,15 +34,44 @@
 - [ ] Seed sample categories/locations from portfolio PDF export (optional CSV)
 - [ ] Link existing local clones to imported GitHub rows by `githubRepo` (partial: Hub/VCC import already links)
 - [x] Click column headers to sort; Custom handle restores drag order
+- [x] Persist table sort (column + dir) in localStorage across restarts
+- [x] Header sort perf: skip DnD off Custom; enter-fade once; dir toggle reverses
 - [x] Sort by stars (grey ★ header); equal-height header cells (no border kink)
 - [x] Omit Location from table; Category = VR / AR / Other (+ Utility / Web / Game / Client)
 - [x] Platform icons in table; Vite HMR polling for Tauri webview refresh
 - [x] Inline priority dropdowns in projects table (Default → Crit)
-- [x] Inline category dropdowns in projects table (VR / AR / Utility / Web / Game / Client / Backup / Other)
+- [x] Inline category dropdowns in projects table (VR / AR / Utility / Web / Game / Client / Bot / Backup / Other)
+- [x] Category: Bot
 - [x] Inline status dropdowns in projects table (Urgent / Experiment / To Do / WIP / Testing / Maintaining / Done / Broken)
 - [x] Launch at PC start toggle (Windows autostart via Tauri plugin)
+- [x] Release desktop shortcut + guard Start with PC in DEV (no debug EXE registration)
+- [x] Smart release launcher: shortcut rebuilds EXE only when source is newer
 - [x] Sync parent folders (persistent roots; immediate children → add missing)
 - [x] Sync menu: Sync all roots in one pass (+ per-folder still available)
 - [x] Click chrome title to rename (ALL CAPS); persist in localStorage
 - [x] Deez logo/icon pack in chrome + favicon + Tauri window icons
 - [x] Detect Unreal (`.uproject`) + AI tools (Cursor/Claude/Codex/OpenCode) on Add/Sync; tool icons in Platform cell
+- [x] Re-probe existing on Sync/import (engine probe overwrites wrong platform e.g. Unity→Unreal; merge tools)
+- [x] Bulk engine re-probe on load + Refresh (heals stuck Unity labels; nested `.uproject` depth-2)
+- [x] Smart primary: Run when `run.bat`/`run.command` exists; Open in ··· (Unity editor / Explorer fallback)
+
+## Project kanban
+
+- [x] Task model + `ProjectStore.tasks` (TS + Rust); empty-default migrate
+- [x] useProjects task CRUD + priority auto-insert; useTasks project scope
+- [x] Click project name → kanban; Back to Projects
+- [x] KanbanBoard columns + Add task + Opt-labeled priority colors
+- [x] Task detail modal: fields + append comments with busy feedback
+- [x] Multi-container dnd-kit across Backlog → Done
+- [x] Import Trello board JSON into open project
+
+## Machine monitor (Ada)
+
+- [x] Vendor Ada Rust modules (metrics, net, spikes, USB, Fuel) + Cargo deps; wire schedulers in `lib.rs`
+- [x] Header MetricsGlance (CPU/RAM/GPU/Disk) + Live status in AppChrome
+- [x] Primary tabs: Projects (default) / Overview / Processes / Fuel / Settings
+- [x] Processes sub-tabs: CPU/RAM · Network · USB · Spikes
+- [x] Fuel panel + Overview fuel pins; reuse Ada fuel/spike on-disk paths
+- [x] Settings tab owns Open on startup (chrome AutostartToggle removed)
+- [x] Runtime lightening: isolate metrics/fuel from Projects re-renders; idle sampler pace; USB watch gated; strip agent debug I/O
+- [x] Header glance: true center (3-col grid chrome) + load-tier value colors (blue/green/yellow, orange >100%)
