@@ -1,5 +1,5 @@
 # Creates a Desktop shortcut to the smart release launcher.
-# The launcher rebuilds the release EXE when source is newer, then starts it.
+# The launcher rebuilds the release EXE when source is newer, then launches it.
 $ErrorActionPreference = "Stop"
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -19,7 +19,7 @@ $shell = New-Object -ComObject WScript.Shell
 $shortcut = $shell.CreateShortcut($lnkPath)
 $shortcut.TargetPath = $launcher
 $shortcut.WorkingDirectory = $repoRoot
-$shortcut.Description = "Deez Project Manager (rebuilds release if source is newer)"
+$shortcut.Description = "Deez Project Manager (rebuilds release when source changed, then launches)"
 if (Test-Path $icon) {
   $shortcut.IconLocation = "$icon,0"
 }
@@ -29,5 +29,5 @@ Write-Host "Desktop shortcut created:"
 Write-Host "  $lnkPath"
 Write-Host "Target:"
 Write-Host "  $launcher"
-Write-Host "App EXE (after launch/rebuild):"
+Write-Host "App EXE (after rebuild/launch):"
 Write-Host "  $(Join-Path $repoRoot 'src-tauri\target\release\deez-project-manager.exe')"

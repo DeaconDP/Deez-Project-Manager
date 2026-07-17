@@ -38,13 +38,13 @@ install-shortcut.bat
 
 That shortcut points at **`launch-release.bat`**, which:
 
-1. Compares source mtimes to `src-tauri\target\release\deez-project-manager.exe`
-2. Runs `npm run tauri build` only when the EXE is missing or stale
-3. Launches the release EXE
+1. Launches the existing release EXE immediately when source hasn't changed
+2. Rebuilds the release EXE first when it is missing or when watched source is newer, then launches — so every launch runs the latest version
+3. `launch-release.bat --rebuild` forces a rebuild even when timestamps match
 
-Double-click `launch-release.bat` for the same behavior without a shortcut. For active coding with HMR, keep using `run.bat` / `tauri dev`.
+Double-click `launch-release.bat` for the same behavior without a shortcut. If a rebuild fails, the previous EXE is launched as a fallback. For active coding with HMR, keep using `run.bat` / `tauri dev`.
 
-**Start with PC** still registers the **release EXE** (not the launcher). Enabling it while running under `tauri dev` would register the debug EXE and fail on next boot — the toggle is disabled in dev and clears a bad registration if one exists. After launching the release build once, turn **Start with PC** back on if you want login autostart.
+**Open on startup** registers the **release EXE** (not the launcher) under the Windows Run key — login launches skip the rebuild check so sign-in stays fast; the next shortcut/`launch-release.bat` launch picks up source changes. It is registered as a quoted path with `--autostart`. On each launch the app refreshes that entry, clamps the window on-screen if a saved position is mostly off-monitor, and shows + focuses the window so login launches are visible. Enabling the toggle while running under `tauri dev` is disabled — a bad debug registration is cleared if one exists. After launching the release build once, turn **Open on startup** back on if you want login autostart.
 
 Installers (optional): `src-tauri\target\release\bundle\nsis\` and `...\msi\`.
 ## v1 features

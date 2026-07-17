@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { Toggle } from "./Toggle";
 
+const isDev = import.meta.env.DEV;
+
 export function SettingsPanel() {
   const [openOnStartup, setOpenOnStartup] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -15,6 +17,17 @@ export function SettingsPanel() {
       setLoading(true);
       setError(null);
       try {
+        if (isDev) {
+          const on = await isEnabled();
+          if (on) await disable();
+          if (!cancelled) {
+            setOpenOnStartup(false);
+            setFeedback(
+              "Open on startup is release-only — enable it after launching a release build.",
+            );
+          }
+          return;
+        }
         const on = await isEnabled();
         if (!cancelled) setOpenOnStartup(on);
       } catch (e) {
@@ -31,7 +44,7 @@ export function SettingsPanel() {
   }, []);
 
   async function setOpenOnStartupPreference(next: boolean) {
-    if (busy) return;
+    if (busy || isDev) return;
     setBusy(true);
     setError(null);
     setFeedback(null);
@@ -69,9 +82,13 @@ export function SettingsPanel() {
         <Toggle
           id="open-on-startup"
           label="Open on startup"
-          description="Launch Deez Project Manager when you sign in to Windows"
+          description={
+            isDev
+              ? "Disabled in development — would register the debug EXE and fail on next boot"
+              : "Launch Deez Project Manager when you sign in to Windows"
+          }
           checked={openOnStartup}
-          disabled={loading}
+          disabled={loading || isDev}
           busy={busy}
           onChange={(v) => void setOpenOnStartupPreference(v)}
         />

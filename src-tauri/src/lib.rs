@@ -6,6 +6,7 @@ mod net;
 mod project_fs;
 mod scheduler;
 mod spikes;
+mod startup;
 mod store;
 mod types;
 mod usage;
@@ -523,13 +524,20 @@ pub fn run() {
     let fuel_state = FuelState::new();
     let fuel_for_sched = fuel_state.clone();
 
+    let window_state_flags = tauri_plugin_window_state::StateFlags::all()
+        .difference(tauri_plugin_window_state::StateFlags::VISIBLE);
+
     tauri::Builder::default()
-        .plugin(tauri_plugin_window_state::Builder::new().build())
+        .plugin(
+            tauri_plugin_window_state::Builder::new()
+                .with_state_flags(window_state_flags)
+                .build(),
+        )
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
-            None,
+            Some(vec![startup::AUTOSTART_ARG.into()]),
         ))
         .manage(MonitorState {
             sampler,
@@ -577,6 +585,16 @@ pub fn run() {
             fuel_clear_credential,
         ])
         .setup(move |app| {
+            startup::refresh_autostart_registration(app);
+            // Window-state restores on window-ready; defer so we clamp/show after that.
+            let handle = app.handle().clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(250));
+                let handle2 = handle.clone();
+                let _ = handle.run_on_main_thread(move || {
+                    startup::ensure_main_window_visible(&handle2);
+                });
+            });
             let handle = app.handle().clone();
             start_scheduler(handle.clone(), sampler_for_sched);
             start_watcher(handle.clone(), fp_for_watch, usb_enabled_for_watch);

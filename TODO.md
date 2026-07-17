@@ -45,7 +45,7 @@
 - [x] Inline status dropdowns in projects table (Urgent / Experiment / To Do / WIP / Testing / Maintaining / Done / Broken)
 - [x] Launch at PC start toggle (Windows autostart via Tauri plugin)
 - [x] Release desktop shortcut + guard Start with PC in DEV (no debug EXE registration)
-- [x] Smart release launcher: shortcut rebuilds EXE only when source is newer
+- [x] Smart release launcher: auto-rebuild when source newer than EXE, then launch; `--rebuild` forces
 - [x] Sync parent folders (persistent roots; immediate children → add missing)
 - [x] Sync menu: Sync all roots in one pass (+ per-folder still available)
 - [x] Click chrome title to rename (ALL CAPS); persist in localStorage
@@ -73,5 +73,6 @@
 - [x] Processes sub-tabs: CPU/RAM · Network · USB · Spikes
 - [x] Fuel panel + Overview fuel pins; reuse Ada fuel/spike on-disk paths
 - [x] Settings tab owns Open on startup (chrome AutostartToggle removed)
+- [x] Open on startup: clamp/show/focus after login; quote Run key; DEV clears debug registration
 - [x] Runtime lightening: isolate metrics/fuel from Projects re-renders; idle sampler pace; USB watch gated; strip agent debug I/O
 - [x] Header glance: true center (3-col grid chrome) + load-tier value colors (blue/green/yellow, orange >100%)
