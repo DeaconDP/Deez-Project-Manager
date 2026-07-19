@@ -64,35 +64,50 @@ fn save_projects(app: AppHandle, store: ProjectStore) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn pick_project_folder(app: AppHandle) -> Result<Option<String>, String> {
-    let folder = app
-        .dialog()
+async fn pick_project_folder(app: AppHandle) -> Result<Option<String>, String> {
+    let (sender, receiver) = tokio::sync::oneshot::channel();
+    app.dialog()
         .file()
         .set_title("Select project folder")
-        .blocking_pick_folder();
+        .pick_folder(move |folder| {
+            let _ = sender.send(folder);
+        });
+    let folder = receiver
+        .await
+        .map_err(|_| "DIALOG-001: folder picker closed unexpectedly".to_string())?;
 
     Ok(folder.map(|p: FilePath| p.to_string()))
 }
 
 #[tauri::command]
-fn pick_project_folders(app: AppHandle) -> Result<Option<Vec<String>>, String> {
-    let folders = app
-        .dialog()
+async fn pick_project_folders(app: AppHandle) -> Result<Option<Vec<String>>, String> {
+    let (sender, receiver) = tokio::sync::oneshot::channel();
+    app.dialog()
         .file()
         .set_title("Select project folder(s)")
-        .blocking_pick_folders();
+        .pick_folders(move |folders| {
+            let _ = sender.send(folders);
+        });
+    let folders = receiver
+        .await
+        .map_err(|_| "DIALOG-002: folder picker closed unexpectedly".to_string())?;
 
     Ok(folders.map(|paths| paths.into_iter().map(|p: FilePath| p.to_string()).collect()))
 }
 
 #[tauri::command]
-fn pick_trello_json(app: AppHandle) -> Result<Option<String>, String> {
-    let file = app
-        .dialog()
+async fn pick_trello_json(app: AppHandle) -> Result<Option<String>, String> {
+    let (sender, receiver) = tokio::sync::oneshot::channel();
+    app.dialog()
         .file()
         .set_title("Import Trello board JSON")
         .add_filter("JSON", &["json"])
-        .blocking_pick_file();
+        .pick_file(move |file| {
+            let _ = sender.send(file);
+        });
+    let file = receiver
+        .await
+        .map_err(|_| "DIALOG-003: file picker closed unexpectedly".to_string())?;
 
     Ok(file.map(|p: FilePath| p.to_string()))
 }

@@ -12,7 +12,7 @@ function assertTauriBridge(_cmd: string): void {
     .__TAURI_INTERNALS__;
   if (!internals) {
     throw new Error(
-      "TAURI-001: Deez Project Manager must run in the desktop app window (npm run tauri dev / run.bat). Do not use a browser tab on :5187 — there is no Tauri IPC there.",
+      "TAURI-001: Deez Project Manager must run in the desktop app window (npm run tauri dev / run.bat / run.command). Do not use a browser tab on :5187 — there is no Tauri IPC there.",
     );
   }
 }

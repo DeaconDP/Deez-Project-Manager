@@ -77,6 +77,7 @@ Portfolio project dashboard (Tauri) replacing day-to-day Unity Hub / VCC list us
 
 ## Deferred
 
+- 2026-07-19: Native macOS Apple GPU, CPU temperature, Wi‑Fi, USB topology, and per-process network telemetry — local Mac compatibility ships with explicit unavailable states first (`src-tauri/src/metrics/`, `src-tauri/src/net/`, `src-tauri/src/usb/mod.rs:28`).
 - 2026-07-15: Cross-PC metadata sync — v1 is local-first only (`src-tauri/src/store.rs`).
 - 2026-07-15: Full Hub/VCC package + create-project — out of v1 scope; list import is shipped (`src-tauri/src/hub_vcc.rs`).
 - 2026-07-15: Cashflow months/Gross/Nett UI — spreadsheet fields kept optional on Project; ledger epic later.

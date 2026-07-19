@@ -69,10 +69,7 @@ impl SamplerState {
             inner.last_wifi = now;
             sample_wifi()
         } else {
-            self.latest
-                .lock()
-                .map(|s| s.wifi.clone())
-                .unwrap_or(None)
+            self.latest.lock().map(|s| s.wifi.clone()).unwrap_or(None)
         };
 
         if now.duration_since(inner.last_disk) >= Duration::from_secs(3) {
@@ -183,47 +180,26 @@ pub fn run_latency_suite() -> Vec<LatencyResult> {
 
 fn probe_once(name: &str, url: &str) -> LatencyResult {
     let start = Instant::now();
-    let result = crate::win_cmd::command("powershell")
-        .args([
-            "-NoProfile",
-            "-NonInteractive",
-            "-WindowStyle",
-            "Hidden",
-            "-Command",
-            &format!(
-                "$ProgressPreference='SilentlyContinue'; try {{ $r = Invoke-WebRequest -Uri '{url}' -UseBasicParsing -TimeoutSec 5; if ($r.StatusCode -ge 200 -and $r.StatusCode -lt 400) {{ 'OK' }} else {{ 'ERR:'+$r.StatusCode }} }} catch {{ 'ERR:'+$_.Exception.Message }}"
-            ),
-        ])
-        .output();
+    let agent: ureq::Agent = ureq::Agent::config_builder()
+        .timeout_global(Some(Duration::from_secs(5)))
+        .build()
+        .into();
+    let result = agent.get(url).call();
 
     match result {
-        Ok(out) if out.status.success() => {
-            let body = String::from_utf8_lossy(&out.stdout);
-            let trimmed = body.trim();
-            if trimmed.starts_with("OK") {
-                LatencyResult {
-                    probe: name.into(),
-                    url: url.into(),
-                    ok: true,
-                    latency_ms: Some(start.elapsed().as_secs_f64() * 1000.0),
-                    error: None,
-                }
-            } else {
-                LatencyResult {
-                    probe: name.into(),
-                    url: url.into(),
-                    ok: false,
-                    latency_ms: None,
-                    error: Some(trimmed.trim_start_matches("ERR:").to_string()),
-                }
-            }
-        }
-        Ok(out) => LatencyResult {
+        Ok(response) if response.status().is_success() => LatencyResult {
+            probe: name.into(),
+            url: url.into(),
+            ok: true,
+            latency_ms: Some(start.elapsed().as_secs_f64() * 1000.0),
+            error: None,
+        },
+        Ok(response) => LatencyResult {
             probe: name.into(),
             url: url.into(),
             ok: false,
             latency_ms: None,
-            error: Some(String::from_utf8_lossy(&out.stderr).trim().to_string()),
+            error: Some(format!("HTTP {}", response.status())),
         },
         Err(e) => LatencyResult {
             probe: name.into(),

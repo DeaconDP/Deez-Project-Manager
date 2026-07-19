@@ -21,6 +21,7 @@ pub fn sample_wifi() -> Option<WifiMetrics> {
     }
 }
 
+#[cfg(any(windows, test))]
 fn parse_netsh_interfaces(text: &str) -> Option<WifiMetrics> {
     // netsh can list multiple interfaces; pick the first connected one.
     let mut blocks: Vec<Vec<&str>> = Vec::new();
@@ -69,6 +70,7 @@ fn parse_netsh_interfaces(text: &str) -> Option<WifiMetrics> {
     None
 }
 
+#[cfg(any(windows, test))]
 fn field_map(lines: &[&str]) -> std::collections::HashMap<String, String> {
     let mut map = std::collections::HashMap::new();
     for line in lines {

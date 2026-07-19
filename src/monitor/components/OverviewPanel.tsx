@@ -60,7 +60,7 @@ export function OverviewPanel({ snap, fuelSources = [] }: Props) {
               <Gauge
                 label="GPU"
                 value={null}
-                sub="No GPU telemetry (NVIDIA nvidia-smi not found)"
+                sub="GPU telemetry unavailable (requires NVIDIA nvidia-smi)"
                 accent="amber"
               />
             ) : (

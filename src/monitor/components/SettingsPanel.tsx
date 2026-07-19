@@ -52,7 +52,7 @@ export function SettingsPanel() {
       if (next) await enable();
       else await disable();
       setOpenOnStartup(next);
-      setFeedback(next ? "Will open when Windows starts." : "Won’t open on startup.");
+      setFeedback(next ? "Will open when you sign in." : "Won’t open on startup.");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -64,7 +64,7 @@ export function SettingsPanel() {
     <section className="panel settings-panel" aria-labelledby="settings-title">
       <header className="panel__head">
         <h2 id="settings-title">Settings</h2>
-        <p className="panel__desc">App preferences for this PC</p>
+        <p className="panel__desc">App preferences for this computer</p>
       </header>
 
       {error ? (
@@ -84,8 +84,8 @@ export function SettingsPanel() {
           label="Open on startup"
           description={
             isDev
-              ? "Disabled in development — would register the debug EXE and fail on next boot"
-              : "Launch Deez Project Manager when you sign in to Windows"
+              ? "Disabled in development — enable it from a release build"
+              : "Launch Deez Project Manager when you sign in"
           }
           checked={openOnStartup}
           disabled={loading || isDev}

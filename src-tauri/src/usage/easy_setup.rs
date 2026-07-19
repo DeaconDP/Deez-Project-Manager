@@ -200,19 +200,49 @@ fn launch_antigravity_ide() -> bool {
 }
 
 fn try_launch_codex_login() -> bool {
-    Command::new("cmd")
-        .args(["/C", "start", "cmd", "/K", "codex login"])
-        .spawn()
-        .is_ok()
+    launch_terminal_command("codex login")
 }
 
 fn try_launch_gemini_login() -> bool {
+    launch_terminal_command("gemini")
+}
+
+#[cfg(windows)]
+fn launch_terminal_command(command: &'static str) -> bool {
     Command::new("cmd")
-        .args(["/C", "start", "cmd", "/K", "gemini"])
+        .args(["/C", "start", "cmd", "/K", command])
         .spawn()
         .is_ok()
 }
 
+#[cfg(target_os = "macos")]
+fn launch_terminal_command(command: &'static str) -> bool {
+    let script = format!("tell application \"Terminal\" to do script \"{command}\"");
+    Command::new("/usr/bin/osascript")
+        .args(["-e", &script])
+        .spawn()
+        .is_ok()
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn launch_terminal_command(command: &'static str) -> bool {
+    Command::new("x-terminal-emulator")
+        .args(["-e", "/bin/sh", "-lc", command])
+        .spawn()
+        .is_ok()
+}
+
+#[cfg(windows)]
 fn open_url(url: &str) {
     let _ = Command::new("cmd").args(["/C", "start", "", url]).spawn();
+}
+
+#[cfg(target_os = "macos")]
+fn open_url(url: &str) {
+    let _ = Command::new("/usr/bin/open").arg(url).spawn();
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn open_url(url: &str) {
+    let _ = Command::new("xdg-open").arg(url).spawn();
 }

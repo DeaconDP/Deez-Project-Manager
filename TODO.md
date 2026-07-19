@@ -14,6 +14,8 @@
 - [x] Import DeaconDP repos + refresh git statuses
 - [x] Import from Unity Hub + VCC project lists
 - [x] `run.bat` / `run.command`, ROADMAP, README
+- [x] macOS local development: native launch paths, Unity bundle discovery, portable probes, and verified `run.command`
+- [x] Fix macOS native folder/file picker event-loop freeze
 
 ## Next (post-v1 polish)
 

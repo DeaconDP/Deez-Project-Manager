@@ -22,9 +22,11 @@ interface Props {
 
 export function ProjectEditModal({ project, open, onClose, onSave }: Props) {
   const titleId = useId();
+  const pathErrorId = useId();
   const nameRef = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState<Project | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
+  const [pathError, setPathError] = useState<string | null>(null);
   const [dirtyConfirm, setDirtyConfirm] = useState(false);
   const [pickingPath, setPickingPath] = useState(false);
   const draftRef = useRef<Project | null>(null);
@@ -42,6 +44,7 @@ export function ProjectEditModal({ project, open, onClose, onSave }: Props) {
       draftRef.current = next;
       projectRef.current = project;
       setNameError(null);
+      setPathError(null);
       setDirtyConfirm(false);
     }
   }, [open, project]);
@@ -118,11 +121,14 @@ export function ProjectEditModal({ project, open, onClose, onSave }: Props) {
 
   async function handlePickPath() {
     setPickingPath(true);
+    setPathError(null);
     try {
       const path = await pickProjectFolder();
       if (path) {
         update("localPath", path);
       }
+    } catch (error) {
+      setPathError(error instanceof Error ? error.message : String(error));
     } finally {
       setPickingPath(false);
     }
@@ -241,7 +247,8 @@ export function ProjectEditModal({ project, open, onClose, onSave }: Props) {
                     onChange={(e) =>
                       update("localPath", e.target.value.trim() || null)
                     }
-                    placeholder="C:\…"
+                    placeholder="/path/to/project"
+                    aria-describedby={pathError ? pathErrorId : undefined}
                   />
                   <button
                     type="button"
@@ -260,6 +267,11 @@ export function ProjectEditModal({ project, open, onClose, onSave }: Props) {
                     )}
                   </button>
                 </div>
+                {pathError ? (
+                  <span id={pathErrorId} className="field-error" role="alert">
+                    {pathError}
+                  </span>
+                ) : null}
               </label>
               <label>
                 GitHub URL

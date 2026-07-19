@@ -32,10 +32,11 @@ pub fn enumerate() -> Result<UsbTopology, String> {
     }
     #[cfg(not(windows))]
     {
-        Ok(UsbTopology::empty_with_warning(
-            "USB-003",
-            "This build only supports Windows USB hub enumeration.",
-        ))
+        #[cfg(target_os = "macos")]
+        let message = "USB topology details are not available on macOS yet.";
+        #[cfg(not(target_os = "macos"))]
+        let message = "USB topology details are not available on this platform.";
+        Ok(UsbTopology::empty_with_warning("USB-003", message))
     }
 }
 

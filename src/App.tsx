@@ -362,7 +362,7 @@ function App() {
       async () => {
         await openPath(project.localPath!);
       },
-      { loading: "Revealing…", success: "Opened in Explorer" },
+      { loading: "Revealing…", success: "Opened in file manager" },
     );
     setRowBusy(null);
   }

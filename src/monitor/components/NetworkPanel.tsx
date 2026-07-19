@@ -109,7 +109,9 @@ export function NetworkPanel({ snap }: Props) {
               </div>
             </dl>
           ) : (
-            <p className="empty">No connected Wi‑Fi interface (real status only)</p>
+            <p className="empty">
+              Wi‑Fi details are unavailable or no interface is connected
+            </p>
           )}
         </div>
 
@@ -159,7 +161,7 @@ export function NetworkPanel({ snap }: Props) {
             {snap.netProcesses.length === 0 ? (
               <tr>
                 <td colSpan={3} className="empty">
-                  No established TCP owners reported
+                  Per-process connection details are unavailable or empty
                 </td>
               </tr>
             ) : (

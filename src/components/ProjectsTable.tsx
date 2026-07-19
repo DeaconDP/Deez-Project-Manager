@@ -568,7 +568,7 @@ function RowOverflowMenu({
                 aria-busy={revealBusy}
                 onClick={() => run(() => onReveal(project))}
               >
-                {revealBusy ? "Revealing…" : "Reveal in Explorer"}
+                {revealBusy ? "Revealing…" : "Reveal in file manager"}
               </button>
             </li>
             <li role="none">

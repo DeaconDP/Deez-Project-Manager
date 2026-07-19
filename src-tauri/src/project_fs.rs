@@ -328,12 +328,12 @@ pub fn find_unity_editor(version: Option<&str>) -> Option<PathBuf> {
         }
     };
 
-    for base in bases {
+    for base in &bases {
         if !base.exists() {
             continue;
         }
         if let Some(ver) = version {
-            let exact = base.join(ver).join("Editor").join(unity_bin());
+            let exact = unity_editor_executable(&base.join(ver));
             if exact.exists() {
                 return Some(exact);
             }
@@ -342,7 +342,7 @@ pub fn find_unity_editor(version: Option<&str>) -> Option<PathBuf> {
                 for entry in entries.flatten() {
                     let name = entry.file_name().to_string_lossy().to_string();
                     if name == ver || name.starts_with(ver) || ver.starts_with(&name) {
-                        let candidate = entry.path().join("Editor").join(unity_bin());
+                        let candidate = unity_editor_executable(&entry.path());
                         if candidate.exists() {
                             return Some(candidate);
                         }
@@ -353,13 +353,10 @@ pub fn find_unity_editor(version: Option<&str>) -> Option<PathBuf> {
     }
 
     // any installed editor as fallback
-    for base in [
-        PathBuf::from(r"C:\Program Files\Unity\Hub\Editor"),
-        PathBuf::from(r"C:\Program Files (x86)\Unity\Hub\Editor"),
-    ] {
-        if let Ok(mut entries) = std::fs::read_dir(&base) {
-            if let Some(Ok(entry)) = entries.next() {
-                let candidate = entry.path().join("Editor").join(unity_bin());
+    for base in &bases {
+        if let Ok(entries) = std::fs::read_dir(base) {
+            for entry in entries.flatten() {
+                let candidate = unity_editor_executable(&entry.path());
                 if candidate.exists() {
                     return Some(candidate);
                 }
@@ -370,12 +367,27 @@ pub fn find_unity_editor(version: Option<&str>) -> Option<PathBuf> {
     None
 }
 
+fn unity_editor_executable(version_dir: &Path) -> PathBuf {
+    #[cfg(target_os = "macos")]
+    {
+        version_dir
+            .join("Unity.app")
+            .join("Contents")
+            .join("MacOS")
+            .join("Unity")
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        version_dir.join("Editor").join(unity_bin())
+    }
+}
+
 #[cfg(windows)]
 fn unity_bin() -> &'static str {
     "Unity.exe"
 }
 
-#[cfg(not(windows))]
+#[cfg(all(not(windows), not(target_os = "macos")))]
 fn unity_bin() -> &'static str {
     "Unity"
 }
@@ -455,6 +467,9 @@ fn find_run_script(root: &Path) -> Option<PathBuf> {
         if command.is_file() {
             return Some(command);
         }
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
         let bat = root.join("run.bat");
         if bat.is_file() {
             return Some(bat);
@@ -469,13 +484,27 @@ pub fn run_project(path: &str) -> Result<(), String> {
     if !root.is_dir() {
         return Err("RUN-001: project path does not exist or is not a directory".into());
     }
-    let script = find_run_script(&root).ok_or_else(|| {
-        "RUN-002: no run.bat or run.command in project root".to_string()
-    })?;
+    let script = find_run_script(&root).ok_or_else(missing_run_script_error)?;
     let script_name = script
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_else(|| script.display().to_string());
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = script
+            .metadata()
+            .map_err(|e| format!("RUN-004: cannot inspect {script_name}: {e}"))?
+            .permissions()
+            .mode();
+        if mode & 0o111 == 0 {
+            return Err(format!(
+                "RUN-004: {script_name} is not executable. Run: chmod +x \"{}\"",
+                script.display()
+            ));
+        }
+    }
 
     #[cfg(windows)]
     {
@@ -504,6 +533,17 @@ pub fn run_project(path: &str) -> Result<(), String> {
             .spawn()
             .map_err(|e| format!("RUN-003: failed to launch {script_name}: {e}"))?;
         Ok(())
+    }
+}
+
+fn missing_run_script_error() -> String {
+    #[cfg(target_os = "macos")]
+    {
+        "RUN-002: no compatible run.command in project root".into()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        "RUN-002: no run.bat or run.command in project root".into()
     }
 }
 
@@ -555,5 +595,26 @@ mod tests {
         assert_eq!(engine.platform, Platform::Other);
         assert!(!engine.is_unity);
         assert!(!engine.is_unreal);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn resolves_macos_unity_bundle_executable() {
+        let version_dir = Path::new("/Applications/Unity/Hub/Editor/6000.0.1f1");
+        assert_eq!(
+            unity_editor_executable(version_dir),
+            version_dir.join("Unity.app/Contents/MacOS/Unity")
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn ignores_windows_only_run_script_on_macos() {
+        let dir = std::env::temp_dir().join("deez_pm_macos_run_script_test");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+        std::fs::write(dir.join("run.bat"), "@echo off").expect("write run.bat");
+        assert!(!has_run_script(dir.to_str().unwrap()));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

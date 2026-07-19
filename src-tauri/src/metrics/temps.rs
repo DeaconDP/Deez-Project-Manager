@@ -1,13 +1,14 @@
-use crate::types::{TempMetrics, TempZone};
+use crate::types::TempMetrics;
+#[cfg(windows)]
+use crate::types::TempZone;
 
 /// Best-effort thermal sample. Missing sensors → None / notes, never fake zeros.
 pub fn sample_temps(gpu_c: Option<f32>) -> TempMetrics {
-    let mut zones = Vec::new();
-    let mut notes = Vec::new();
-    let mut cpu_c = None;
-
     #[cfg(windows)]
     {
+        let mut zones = Vec::new();
+        let mut notes = Vec::new();
+        let mut cpu_c = None;
         match sample_wmi_thermal() {
             Ok(z) => {
                 if z.is_empty() {
@@ -24,18 +25,26 @@ pub fn sample_temps(gpu_c: Option<f32>) -> TempMetrics {
             }
             Err(e) => notes.push(format!("Thermal query unavailable: {e}")),
         }
+        TempMetrics {
+            cpu_c,
+            gpu_c,
+            zones,
+            notes,
+        }
     }
 
     #[cfg(not(windows))]
     {
-        notes.push("Thermal sampling is Windows-only in this build.".into());
-    }
-
-    TempMetrics {
-        cpu_c,
-        gpu_c,
-        zones,
-        notes,
+        #[cfg(target_os = "macos")]
+        let note = "CPU thermal sampling is not available on macOS yet.";
+        #[cfg(not(target_os = "macos"))]
+        let note = "CPU thermal sampling is not available on this platform.";
+        TempMetrics {
+            cpu_c: None,
+            gpu_c,
+            zones: Vec::new(),
+            notes: vec![note.into()],
+        }
     }
 }
 
@@ -53,7 +62,14 @@ Get-CimInstance -Namespace root/wmi -ClassName MSAcpi_ThermalZoneTemperature -Er
 "#;
 
     let output = crate::win_cmd::command("powershell")
-        .args(["-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", script])
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-WindowStyle",
+            "Hidden",
+            "-Command",
+            script,
+        ])
         .output()
         .map_err(|e| e.to_string())?;
 

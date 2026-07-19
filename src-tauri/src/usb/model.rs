@@ -172,6 +172,7 @@ pub fn chrono_like_now() -> String {
     ms.to_string()
 }
 
+#[cfg(windows)]
 pub fn port_status_label(status: &PortStatus) -> &'static str {
     match status {
         PortStatus::Empty => "Empty",

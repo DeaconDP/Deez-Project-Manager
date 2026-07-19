@@ -103,15 +103,15 @@ pub fn normalize_path_key(path: &str) -> String {
     let mut out = String::with_capacity(trimmed.len());
     for ch in trimmed.chars() {
         if ch == '/' || ch == '\\' {
-            if !out.ends_with('\\') {
-                out.push('\\');
+            if !out.ends_with(std::path::MAIN_SEPARATOR) {
+                out.push(std::path::MAIN_SEPARATOR);
             }
         } else {
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             {
                 out.extend(ch.to_lowercase());
             }
-            #[cfg(not(windows))]
+            #[cfg(all(not(windows), not(target_os = "macos")))]
             {
                 out.push(ch);
             }
@@ -447,10 +447,8 @@ pub fn try_link_existing(projects: &mut [Project], discovered: &DiscoveredProjec
             continue;
         }
         project.local_path = Some(discovered.path.clone());
-        if matches!(
-            discovered.platform,
-            Platform::Unity | Platform::Unreal
-        ) && project.platform != discovered.platform
+        if matches!(discovered.platform, Platform::Unity | Platform::Unreal)
+            && project.platform != discovered.platform
         {
             project.platform = discovered.platform.clone();
         }
@@ -485,6 +483,26 @@ mod tests {
     use super::*;
     use crate::models::ProjectStore;
     use std::fs;
+
+    #[test]
+    fn normalizes_mixed_path_separators() {
+        let components = if cfg!(any(windows, target_os = "macos")) {
+            ["users", "dale", "projects"]
+        } else {
+            ["Users", "Dale", "Projects"]
+        };
+        let expected = components.join(std::path::MAIN_SEPARATOR_STR);
+        assert_eq!(normalize_path_key(r"Users/Dale\Projects/"), expected);
+    }
+
+    #[cfg(any(windows, target_os = "macos"))]
+    #[test]
+    fn normalizes_case_on_case_insensitive_desktop_platforms() {
+        assert_eq!(
+            normalize_path_key("/Users/Dale/Project"),
+            normalize_path_key("/users/dale/project")
+        );
+    }
 
     #[test]
     fn reprobe_heals_live_store_unreal_labels() {

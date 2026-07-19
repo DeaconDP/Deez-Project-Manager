@@ -51,22 +51,80 @@ pub fn antigravity_state_database_paths() -> Vec<PathBuf> {
 }
 
 pub fn cursor_executable_paths() -> Vec<PathBuf> {
-    let local = local_app_data().unwrap_or_else(|| PathBuf::from("."));
-    vec![
-        local.join("Programs").join("cursor").join("Cursor.exe"),
-        local.join("cursor").join("Cursor.exe"),
-    ]
+    #[cfg(windows)]
+    {
+        let local = local_app_data().unwrap_or_else(|| PathBuf::from("."));
+        vec![
+            local.join("Programs").join("cursor").join("Cursor.exe"),
+            local.join("cursor").join("Cursor.exe"),
+        ]
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let mut paths = vec![PathBuf::from(
+            "/Applications/Cursor.app/Contents/MacOS/Cursor",
+        )];
+        if let Some(home) = user_profile() {
+            paths.push(
+                home.join("Applications")
+                    .join("Cursor.app")
+                    .join("Contents")
+                    .join("MacOS")
+                    .join("Cursor"),
+            );
+        }
+        paths
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        vec![
+            PathBuf::from("/usr/bin/cursor"),
+            PathBuf::from("/usr/local/bin/cursor"),
+        ]
+    }
 }
 
 pub fn antigravity_executable_paths() -> Vec<PathBuf> {
-    let local = local_app_data().unwrap_or_else(|| PathBuf::from("."));
-    vec![
-        local
-            .join("Programs")
-            .join("Antigravity IDE")
-            .join("Antigravity IDE.exe"),
-        local.join("Antigravity IDE").join("Antigravity IDE.exe"),
-    ]
+    #[cfg(windows)]
+    {
+        let local = local_app_data().unwrap_or_else(|| PathBuf::from("."));
+        vec![
+            local
+                .join("Programs")
+                .join("Antigravity IDE")
+                .join("Antigravity IDE.exe"),
+            local.join("Antigravity IDE").join("Antigravity IDE.exe"),
+        ]
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let bundles = ["Antigravity IDE.app", "Antigravity.app"];
+        let mut paths = Vec::new();
+        for bundle in bundles {
+            let executable = bundle.trim_end_matches(".app");
+            paths.push(
+                PathBuf::from("/Applications")
+                    .join(bundle)
+                    .join("Contents")
+                    .join("MacOS")
+                    .join(executable),
+            );
+            if let Some(home) = user_profile() {
+                paths.push(
+                    home.join("Applications")
+                        .join(bundle)
+                        .join("Contents")
+                        .join("MacOS")
+                        .join(executable),
+                );
+            }
+        }
+        paths
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        Vec::new()
+    }
 }
 
 pub fn codex_auth_file() -> PathBuf {
@@ -123,11 +181,9 @@ pub fn opencode_auth_paths() -> Vec<PathBuf> {
 pub fn gemini_cli_oauth_js_paths() -> Vec<PathBuf> {
     let mut paths = Vec::new();
     if let Ok(path_env) = std::env::var("PATH") {
-        for dir in path_env.split(';').filter(|d| !d.trim().is_empty()) {
-            let trimmed = dir.trim();
+        for dir in std::env::split_paths(&path_env) {
             paths.push(
-                PathBuf::from(trimmed)
-                    .join("node_modules")
+                dir.join("node_modules")
                     .join("@google")
                     .join("gemini-cli-core")
                     .join("dist")
@@ -136,8 +192,7 @@ pub fn gemini_cli_oauth_js_paths() -> Vec<PathBuf> {
                     .join("oauth2.js"),
             );
             paths.push(
-                PathBuf::from(trimmed)
-                    .join("node_modules")
+                dir.join("node_modules")
                     .join("@google")
                     .join("gemini-cli")
                     .join("node_modules")
