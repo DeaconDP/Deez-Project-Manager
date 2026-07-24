@@ -1,5 +1,5 @@
-# Launch the release EXE. Rebuild first when it is missing, when watched source
-# is newer than the EXE, or when --rebuild is passed.
+# Update repo, rebuild release EXE when needed, then launch it.
+# Rebuild when EXE is missing, source is newer, or -Rebuild is passed.
 param(
   [switch]$Rebuild
 )
@@ -11,6 +11,25 @@ Set-Location $repoRoot
 
 $exe = Join-Path $repoRoot "src-tauri\target\release\deez-project-manager.exe"
 $logPath = Join-Path $env:TEMP "deez-project-manager-launch.log"
+
+function Update-Repo {
+  if (-not (Test-Path -LiteralPath (Join-Path $repoRoot ".git"))) {
+    return
+  }
+  if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+    Write-LaunchLog "git not found; skip pull"
+    return
+  }
+  Write-Host "Updating to latest..."
+  Write-LaunchLog "git pull --ff-only started"
+  & git pull --ff-only
+  if ($LASTEXITCODE -ne 0) {
+    Write-Host "git pull skipped (local changes or no fast-forward). Continuing with local tree."
+    Write-LaunchLog "git pull failed with exit code $LASTEXITCODE; continuing"
+  } else {
+    Write-LaunchLog "git pull succeeded"
+  }
+}
 
 function Write-LaunchLog {
   param([string]$Message)
@@ -153,6 +172,10 @@ $watchPaths = @(
   (Join-Path $repoRoot "tsconfig.node.json")
 )
 
+Write-LaunchLog "launcher start: rebuild=$Rebuild"
+
+Update-Repo
+
 $exeExists = Test-Path -LiteralPath $exe
 $sourceIsNewer = $false
 if ($exeExists) {
@@ -162,8 +185,7 @@ if ($exeExists) {
     $sourceIsNewer = $true
   }
 }
-
-Write-LaunchLog "launcher start: rebuild=$Rebuild exeExists=$exeExists sourceIsNewer=$sourceIsNewer"
+Write-LaunchLog "after update: exeExists=$exeExists sourceIsNewer=$sourceIsNewer"
 
 if ($exeExists -and -not $Rebuild -and -not $sourceIsNewer) {
   if (Start-ReleaseExe) {

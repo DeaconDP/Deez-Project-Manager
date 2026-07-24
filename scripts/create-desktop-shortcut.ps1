@@ -1,9 +1,8 @@
-# Creates a Desktop shortcut to the smart release launcher.
-# The launcher rebuilds the release EXE when source is newer, then launches it.
+# Creates a Desktop shortcut to run.bat (update → build if needed → launch).
 $ErrorActionPreference = "Stop"
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$launcher = Join-Path $repoRoot "launch-release.bat"
+$launcher = Join-Path $repoRoot "run.bat"
 $icon = Join-Path $repoRoot "src-tauri\icons\icon.ico"
 
 if (-not (Test-Path $launcher)) {
@@ -19,7 +18,7 @@ $shell = New-Object -ComObject WScript.Shell
 $shortcut = $shell.CreateShortcut($lnkPath)
 $shortcut.TargetPath = $launcher
 $shortcut.WorkingDirectory = $repoRoot
-$shortcut.Description = "Deez Project Manager (rebuilds release when source changed, then launches)"
+$shortcut.Description = "Deez Project Manager (update, rebuild when needed, launch)"
 if (Test-Path $icon) {
   $shortcut.IconLocation = "$icon,0"
 }

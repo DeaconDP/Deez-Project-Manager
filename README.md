@@ -17,42 +17,42 @@ Created by deac.online @ worldbuild.io
 - macOS: Xcode Command Line Tools (`xcode-select --install`); Apple Silicon and Intel are supported for local development
 - Windows: Microsoft C++ Build Tools and WebView2 for Tauri
 
-## Run (development)
+## Run (Windows)
 
-Double-click **`run.bat`** (Windows) or **`run.command`** (macOS), or:
+Double-click **`run.bat`**. It:
+
+1. `git pull --ff-only` when this is a git checkout (skips cleanly if dirty / no fast-forward)
+2. Rebuilds the release EXE when it is missing or source is newer
+3. Launches `src-tauri\target\release\deez-project-manager.exe`
+
+Force a rebuild: `run.bat --rebuild`. Create a Desktop shortcut to the same launcher: `run.bat --shortcut`.
+
+Do **not** pin the debug EXE or open `http://127.0.0.1:5187` in a browser — that Vite URL has no Tauri IPC.
+
+**Open on startup** registers the **release EXE** (not `run.bat`) under the Windows Run key so login stays fast. The next `run.bat` / Desktop shortcut launch picks up source changes. Enabling the toggle under `tauri dev` is disabled. After the first release launch, turn **Open on startup** back on if you want login autostart.
+
+Installers (optional): `src-tauri\target\release\bundle\nsis\` and `...\msi\`.
+
+## Run (macOS)
+
+Double-click **`run.command`** (or `chmod +x run.command` once if Finder complains). Same flow as Windows:
+
+1. `git pull --ff-only` when this is a git checkout
+2. Rebuilds the release `.app` when it is missing or source is newer
+3. Opens `src-tauri/target/release/bundle/macos/Deez Project Manager.app`
+
+Force a rebuild: `./run.command --rebuild`. Desktop alias: `./run.command --shortcut`.
+
+Signed/notarized `.dmg` distribution is not included yet; this launches the local release build.
+
+## Development HMR
 
 ```bash
 npm install
 npm run tauri dev
 ```
 
-Use the **Deez Project Manager desktop window**. Do not open `http://127.0.0.1:5187` in a browser — that Vite URL has no Tauri IPC and will error with `invoke`.
-
-On macOS, `run.command` starts (or attaches to) a tmux session named **`deez-pm`**. Reattach later with `tmux attach -t deez-pm`. Finder may require approval the first time it opens Terminal. If macOS reports that the script is not executable, run `chmod +x run.command` once.
-
-`run.bat`, `run.command`, and `tauri dev` are for development only. Do **not** pin or shortcut the debug executable — it needs Vite running and will open blank alone.
-
-## Windows desktop shortcut & startup (release)
-
-Daily use needs a **release** build (UI embedded, no Vite). Create a Desktop shortcut with:
-
-```bash
-install-shortcut.bat
-```
-
-That shortcut points at **`launch-release.bat`**, which:
-
-1. Launches the existing release EXE immediately when source hasn't changed
-2. Rebuilds the release EXE first when it is missing or when watched source is newer, then launches — so every launch runs the latest version
-3. `launch-release.bat --rebuild` forces a rebuild even when timestamps match
-
-Double-click `launch-release.bat` for the same behavior without a shortcut. If a rebuild fails, the previous EXE is launched as a fallback. For active coding with HMR, keep using `run.bat` / `tauri dev`.
-
-**Open on startup** registers the **release EXE** (not the launcher) under the Windows Run key — login launches skip the rebuild check so sign-in stays fast; the next shortcut/`launch-release.bat` launch picks up source changes. It is registered as a quoted path with `--autostart`. On each launch the app refreshes that entry, clamps the window on-screen if a saved position is mostly off-monitor, and shows + focuses the window so login launches are visible. Enabling the toggle while running under `tauri dev` is disabled — a bad debug registration is cleared if one exists. After launching the release build once, turn **Open on startup** back on if you want login autostart.
-
-Installers (optional): `src-tauri\target\release\bundle\nsis\` and `...\msi\`.
-
-Signed/notarized macOS `.app` and `.dmg` distribution is not included yet; this release workflow remains Windows-only.
+Use the desktop window — not a browser tab on `:5187`.
 
 ## v1 features
 
