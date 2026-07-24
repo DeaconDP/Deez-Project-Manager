@@ -36,13 +36,24 @@ import {
   normalizeStatus,
   statusClassSlug,
   type Category,
-  type Platform,
   type Priority,
   type Project,
   type Status,
 } from "../types";
 import type { UiLayout } from "../hooks/useUiZoom";
 import { CategorySelect } from "./CategorySelect";
+import {
+  CategoryHeaderIcon,
+  CategoryIcon,
+  GithubHeaderIcon,
+  GithubStatusIcon,
+  PlatformHeaderIcon,
+  PlatformIcon,
+  PriorityHeaderIcon,
+  PriorityIcon,
+  StatusHeaderIcon,
+  StatusIcon,
+} from "./FieldIcons";
 import { PrioritySelect } from "./PrioritySelect";
 import { StatusSelect } from "./StatusSelect";
 import { Spinner } from "./Spinner";
@@ -204,116 +215,6 @@ function GripIcon() {
   );
 }
 
-function PlatformIcon({ platform }: { platform: Platform }) {
-  const common = {
-    className: "platform-icon",
-    width: 18,
-    height: 18,
-    viewBox: "0 0 18 18",
-    fill: "none",
-    xmlns: "http://www.w3.org/2000/svg",
-    "aria-hidden": true as const,
-  };
-
-  switch (platform) {
-    case "Unity":
-      return (
-        <svg {...common}>
-          <path
-            d="M9 2.5 14.5 5.5v7L9 15.5 3.5 12.5v-7L9 2.5Z"
-            stroke="currentColor"
-            strokeWidth="1.35"
-            strokeLinejoin="round"
-          />
-          <path
-            d="M9 2.5v13M3.5 5.5 9 8.5l5.5-3"
-            stroke="currentColor"
-            strokeWidth="1.15"
-            strokeLinejoin="round"
-          />
-        </svg>
-      );
-    case "Unreal":
-      return (
-        <svg {...common}>
-          <circle
-            cx="9"
-            cy="9"
-            r="6.25"
-            stroke="currentColor"
-            strokeWidth="1.35"
-          />
-          <path
-            d="M6.2 11.5V6.5h2.1c1.35 0 2.2.7 2.2 1.85 0 .95-.55 1.55-1.4 1.75L11.8 11.5H10l-1.5-1.3H7.55v1.3H6.2Zm1.35-2.45h.75c.55 0 .9-.3.9-.75s-.35-.75-.9-.75h-.75v1.5Z"
-            fill="currentColor"
-          />
-        </svg>
-      );
-    case "Web":
-      return (
-        <svg {...common}>
-          <circle
-            cx="9"
-            cy="9"
-            r="6.25"
-            stroke="currentColor"
-            strokeWidth="1.35"
-          />
-          <path
-            d="M2.75 9h12.5M9 2.75c1.8 1.9 2.7 4 2.7 6.25S10.8 13.35 9 15.25M9 2.75C7.2 4.65 6.3 6.75 6.3 9s.9 4.6 2.7 6.25"
-            stroke="currentColor"
-            strokeWidth="1.2"
-            strokeLinecap="round"
-          />
-        </svg>
-      );
-    case "Viverse":
-      return (
-        <svg {...common}>
-          <path
-            d="M9 2.75 15.25 9 9 15.25 2.75 9 9 2.75Z"
-            stroke="currentColor"
-            strokeWidth="1.35"
-            strokeLinejoin="round"
-          />
-          <circle cx="9" cy="9" r="2.1" fill="currentColor" />
-        </svg>
-      );
-    case "Consulting":
-      return (
-        <svg {...common}>
-          <path
-            d="M3.5 7.25h11v7.25H3.5V7.25Z"
-            stroke="currentColor"
-            strokeWidth="1.35"
-            strokeLinejoin="round"
-          />
-          <path
-            d="M6.25 7.25V5.5a2.75 2.75 0 0 1 5.5 0v1.75"
-            stroke="currentColor"
-            strokeWidth="1.35"
-            strokeLinecap="round"
-          />
-        </svg>
-      );
-    default:
-      return (
-        <svg {...common}>
-          <circle
-            cx="9"
-            cy="9"
-            r="6.25"
-            stroke="currentColor"
-            strokeWidth="1.35"
-          />
-          <circle cx="6.25" cy="9" r="1.1" fill="currentColor" />
-          <circle cx="9" cy="9" r="1.1" fill="currentColor" />
-          <circle cx="11.75" cy="9" r="1.1" fill="currentColor" />
-        </svg>
-      );
-  }
-}
-
 function ToolIcon({ tool }: { tool: string }) {
   const common = {
     className: "tool-icon",
@@ -409,6 +310,7 @@ interface RowProps {
   /** First-paint enter only — not on header sort reorder. */
   animateEnter?: boolean;
   index?: number;
+  iconOnly?: boolean;
   onToggleFavorite: (id: string) => void;
   onPriorityChange: (id: string, priority: Priority) => void;
   onStatusChange: (id: string, status: Status) => void;
@@ -772,6 +674,7 @@ function ProjectDataCells({
   category,
   actions,
   onOpenBoard,
+  iconOnly = false,
 }: {
   project: Project;
   drag: ReactNode;
@@ -781,6 +684,7 @@ function ProjectDataCells({
   category: ReactNode;
   actions: ReactNode;
   onOpenBoard?: (project: Project) => void;
+  iconOnly?: boolean;
 }) {
   const ghLabel = githubStatusLabel(project.githubStatus);
 
@@ -796,7 +700,9 @@ function ProjectDataCells({
             aria-label={project.platform}
           >
             <PlatformIcon platform={project.platform} />
-            <span className="platform-label">{project.platform}</span>
+            {iconOnly ? null : (
+              <span className="platform-label">{project.platform}</span>
+            )}
           </span>
           {(project.tools?.length ?? 0) > 0 ? (
             <span className="tool-icon-row" aria-label={project.tools.join(", ")}>
@@ -807,7 +713,7 @@ function ProjectDataCells({
               ))}
             </span>
           ) : null}
-          {project.unityVersion ? (
+          {!iconOnly && project.unityVersion ? (
             <span className="platform-sub" title={`Unity ${project.unityVersion}`}>
               {project.unityVersion}
             </span>
@@ -836,6 +742,14 @@ function ProjectDataCells({
       <Cell className="col-github">
         {project.githubStatus === "none" ? (
           <EmptyValue />
+        ) : iconOnly ? (
+          <span
+            className={`gh-status gh-icon-only gh-${project.githubStatus}`}
+            title={ghLabel}
+            aria-label={ghLabel}
+          >
+            <GithubStatusIcon status={project.githubStatus} />
+          </span>
         ) : (
           <span
             className={`gh-status gh-${project.githubStatus}`}
@@ -862,6 +776,7 @@ function InteractiveRowCells({
   onCategoryChange,
   onOpenBoard,
   actions,
+  iconOnly = false,
 }: {
   project: Project;
   isDragging: boolean;
@@ -873,11 +788,13 @@ function InteractiveRowCells({
   onCategoryChange: (id: string, category: Category) => void;
   onOpenBoard?: (project: Project) => void;
   actions: ReactNode;
+  iconOnly?: boolean;
 }) {
   return (
     <ProjectDataCells
       project={project}
       onOpenBoard={onOpenBoard}
+      iconOnly={iconOnly}
       drag={
         <button
           type="button"
@@ -908,6 +825,7 @@ function InteractiveRowCells({
       priority={
         <PrioritySelect
           compact
+          iconOnly={iconOnly}
           value={project.priority}
           label={`Priority for ${project.name}`}
           onChange={(priority) => onPriorityChange(project.id, priority)}
@@ -916,6 +834,7 @@ function InteractiveRowCells({
       status={
         <StatusSelect
           compact
+          iconOnly={iconOnly}
           value={project.status}
           label={`Status for ${project.name}`}
           onChange={(status) => onStatusChange(project.id, status)}
@@ -924,6 +843,7 @@ function InteractiveRowCells({
       category={
         <CategorySelect
           compact
+          iconOnly={iconOnly}
           value={project.category}
           label={`Category for ${project.name}`}
           onChange={(category) => onCategoryChange(project.id, category)}
@@ -934,7 +854,13 @@ function InteractiveRowCells({
   );
 }
 
-function OverlayRowCells({ project }: { project: Project }) {
+function OverlayRowCells({
+  project,
+  iconOnly = false,
+}: {
+  project: Project;
+  iconOnly?: boolean;
+}) {
   const prio = project.priority.toLowerCase();
   const status = normalizeStatus(project.status);
   const statusSlug = statusClassSlug(status);
@@ -943,6 +869,7 @@ function OverlayRowCells({ project }: { project: Project }) {
   return (
     <ProjectDataCells
       project={project}
+      iconOnly={iconOnly}
       drag={
         <span className="drag-handle is-active" aria-hidden="true">
           <GripIcon />
@@ -957,28 +884,55 @@ function OverlayRowCells({ project }: { project: Project }) {
         </span>
       }
       priority={
-        <span
-          className={`badge priority-${prio}`}
-          title={`Priority ${project.priority}`}
-        >
-          {project.priority}
-        </span>
+        iconOnly ? (
+          <span
+            className={`badge badge-icon priority-${prio}`}
+            title={`Priority ${project.priority}`}
+          >
+            <PriorityIcon priority={project.priority} />
+          </span>
+        ) : (
+          <span
+            className={`badge priority-${prio}`}
+            title={`Priority ${project.priority}`}
+          >
+            {project.priority}
+          </span>
+        )
       }
       status={
-        <span
-          className={`badge status-${statusSlug}`}
-          title={`Status ${status}`}
-        >
-          {status}
-        </span>
+        iconOnly ? (
+          <span
+            className={`badge badge-icon status-${statusSlug}`}
+            title={`Status ${status}`}
+          >
+            <StatusIcon status={status} />
+          </span>
+        ) : (
+          <span
+            className={`badge status-${statusSlug}`}
+            title={`Status ${status}`}
+          >
+            {status}
+          </span>
+        )
       }
       category={
-        <span
-          className={`badge category-${cat}`}
-          title={`Category ${normalizeCategory(project.category)}`}
-        >
-          {normalizeCategory(project.category)}
-        </span>
+        iconOnly ? (
+          <span
+            className={`badge badge-icon category-${cat}`}
+            title={`Category ${normalizeCategory(project.category)}`}
+          >
+            <CategoryIcon category={project.category} />
+          </span>
+        ) : (
+          <span
+            className={`badge category-${cat}`}
+            title={`Category ${normalizeCategory(project.category)}`}
+          >
+            {normalizeCategory(project.category)}
+          </span>
+        )
       }
       actions={
         <span className="drag-overlay-actions muted">
@@ -993,9 +947,11 @@ function OverlayRowCells({ project }: { project: Project }) {
 function ProjectRowOverlay({
   project,
   width,
+  iconOnly = false,
 }: {
   project: Project;
   width?: number;
+  iconOnly?: boolean;
 }) {
   const style: CSSProperties | undefined = width
     ? { width, minWidth: width }
@@ -1003,7 +959,7 @@ function ProjectRowOverlay({
 
   return (
     <div
-      className="projects-table drag-overlay-table"
+      className={`projects-table drag-overlay-table${iconOnly ? " is-icon-fields" : ""}`}
       style={style}
       aria-hidden="true"
     >
@@ -1011,7 +967,7 @@ function ProjectRowOverlay({
         className={`project-row is-drag-overlay priority-row-${project.priority.toLowerCase()}`}
         role="row"
       >
-        <OverlayRowCells project={project} />
+        <OverlayRowCells project={project} iconOnly={iconOnly} />
       </div>
     </div>
   );
@@ -1025,6 +981,7 @@ function ProjectRow({
   archivedView,
   animateEnter = false,
   index = 0,
+  iconOnly = false,
   allowDrag = false,
   isDragging = false,
   dragHandleProps,
@@ -1069,6 +1026,7 @@ function ProjectRow({
         isDragging={isDragging}
         allowDrag={allowDrag}
         dragHandleProps={dragHandleProps ?? {}}
+        iconOnly={iconOnly}
         onToggleFavorite={onToggleFavorite}
         onPriorityChange={onPriorityChange}
         onStatusChange={onStatusChange}
@@ -1138,7 +1096,7 @@ function SortHeader({
   ariaLabel,
   hideIndicator = false,
 }: {
-  label: string;
+  label: ReactNode;
   sortKey: TableSortKey;
   sort: TableSortState;
   onSort: (key: TableSortKey) => void;
@@ -1250,6 +1208,7 @@ export function ProjectsTable({
   }, []);
 
   const allowDrag = sort.key === "custom";
+  const iconOnly = layout === "phone";
 
   // Same-key dir toggle: reverse prior result instead of full compare re-sort.
   const sortCacheRef = useRef<{
@@ -1369,6 +1328,7 @@ export function ProjectsTable({
     busyAction,
     archivedView,
     animateEnter,
+    iconOnly,
     onToggleFavorite,
     onPriorityChange,
     onStatusChange,
@@ -1386,7 +1346,11 @@ export function ProjectsTable({
     <div
       className={`table-wrap table-wrap-${layout}${activeId ? " is-sorting" : ""}`}
     >
-      <div className="projects-table" role="table" aria-label="Projects">
+      <div
+        className={`projects-table${iconOnly ? " is-icon-fields" : ""}`}
+        role="table"
+        aria-label="Projects"
+      >
         <div className="projects-table-head" role="rowgroup">
           <div className="projects-table-header-row" role="row">
             <SortHeader
@@ -1406,7 +1370,8 @@ export function ProjectsTable({
               hideIndicator
             />
             <SortHeader
-              label="Platform"
+              label={iconOnly ? <PlatformHeaderIcon /> : "Platform"}
+              ariaLabel={iconOnly ? "platform" : undefined}
               sortKey="platform"
               sort={sort}
               onSort={handleSort}
@@ -1420,28 +1385,32 @@ export function ProjectsTable({
               className="col-name"
             />
             <SortHeader
-              label="Priority"
+              label={iconOnly ? <PriorityHeaderIcon /> : "Priority"}
+              ariaLabel={iconOnly ? "priority" : undefined}
               sortKey="priority"
               sort={sort}
               onSort={handleSort}
               className="col-priority"
             />
             <SortHeader
-              label="Status"
+              label={iconOnly ? <StatusHeaderIcon /> : "Status"}
+              ariaLabel={iconOnly ? "status" : undefined}
               sortKey="status"
               sort={sort}
               onSort={handleSort}
               className="col-status"
             />
             <SortHeader
-              label="Category"
+              label={iconOnly ? <CategoryHeaderIcon /> : "Category"}
+              ariaLabel={iconOnly ? "category" : undefined}
               sortKey="category"
               sort={sort}
               onSort={handleSort}
               className="col-category"
             />
             <SortHeader
-              label="GitHub"
+              label={iconOnly ? <GithubHeaderIcon /> : "GitHub"}
+              ariaLabel={iconOnly ? "GitHub" : undefined}
               sortKey="github"
               sort={sort}
               onSort={handleSort}
@@ -1494,7 +1463,11 @@ export function ProjectsTable({
       </SortableContext>
       <DragOverlay dropAnimation={reduceMotion ? null : DROP_ANIMATION} zIndex={40}>
         {activeProject ? (
-          <ProjectRowOverlay project={activeProject} width={overlayWidth} />
+          <ProjectRowOverlay
+            project={activeProject}
+            width={overlayWidth}
+            iconOnly={iconOnly}
+          />
         ) : null}
       </DragOverlay>
     </DndContext>

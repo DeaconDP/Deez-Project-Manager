@@ -9,6 +9,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { PRIORITIES, priorityLabel, type Priority } from "../types";
+import { PriorityIcon } from "./FieldIcons";
 
 interface Props {
   value: Priority;
@@ -17,6 +18,8 @@ interface Props {
   label: string;
   /** Dense trigger for table cells. */
   compact?: boolean;
+  /** Icon-only trigger (phone table cells). */
+  iconOnly?: boolean;
   disabled?: boolean;
   id?: string;
   /** Show Default as Opt (kanban tasks). */
@@ -30,6 +33,7 @@ export function PrioritySelect({
   onChange,
   label,
   compact = false,
+  iconOnly = false,
   disabled = false,
   id,
   optLabel = false,
@@ -62,7 +66,7 @@ export function PrioritySelect({
       setMenuPos({
         top: openUp ? rect.top - gap : rect.bottom + gap,
         left: rect.left,
-        minWidth: Math.max(rect.width, compact ? 88 : 112),
+        minWidth: Math.max(rect.width, iconOnly ? 120 : compact ? 88 : 112),
         openUp,
       });
     }
@@ -74,7 +78,7 @@ export function PrioritySelect({
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", place, true);
     };
-  }, [open, compact]);
+  }, [open, compact, iconOnly]);
 
   useEffect(() => {
     if (!open) return;
@@ -219,7 +223,7 @@ export function PrioritySelect({
 
   return (
     <div
-      className={`priority-picker${compact ? " is-compact" : ""}${open ? " is-open" : ""}`}
+      className={`priority-picker${compact ? " is-compact" : ""}${iconOnly ? " is-icon-only" : ""}${open ? " is-open" : ""}`}
       ref={rootRef}
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
@@ -230,6 +234,7 @@ export function PrioritySelect({
         id={id}
         className={`priority-picker-trigger priority-${prio}`}
         disabled={disabled}
+        title={priorityLabel(value, optLabel)}
         aria-label={label}
         aria-haspopup="listbox"
         aria-expanded={open}
@@ -237,12 +242,18 @@ export function PrioritySelect({
         onClick={() => setOpen((v) => !v)}
         onKeyDown={onTriggerKeyDown}
       >
-        <span className="priority-picker-value">
-          {priorityLabel(value, optLabel)}
-        </span>
-        <span className="priority-picker-caret" aria-hidden="true">
-          ▾
-        </span>
+        {iconOnly ? (
+          <PriorityIcon priority={value} />
+        ) : (
+          <>
+            <span className="priority-picker-value">
+              {priorityLabel(value, optLabel)}
+            </span>
+            <span className="priority-picker-caret" aria-hidden="true">
+              ▾
+            </span>
+          </>
+        )}
       </button>
       {menu}
     </div>

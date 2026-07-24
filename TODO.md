@@ -33,6 +33,7 @@
 - [x] Keyboard shortcut: focus search (`/` or Ctrl/Cmd+K)
 - [x] Mobile/narrow use same table as desktop (scroll + sticky name cols); toolbar matches desktop wrap
 - [x] No table L/R scrollbar — clip X, fluid columns (no min-width force)
+- [x] Phone: icon-only Platform / Priority / Status / Category / GitHub columns (≤700px)
 - [ ] Seed sample categories/locations from portfolio PDF export (optional CSV)
 - [ ] Link existing local clones to imported GitHub rows by `githubRepo` (partial: Hub/VCC import already links)
 - [x] Click column headers to sort; Custom handle restores drag order

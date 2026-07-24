@@ -9,6 +9,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { CATEGORIES, normalizeCategory, type Category } from "../types";
+import { CategoryIcon } from "./FieldIcons";
 
 interface Props {
   value: string;
@@ -17,6 +18,8 @@ interface Props {
   label: string;
   /** Dense trigger for table cells. */
   compact?: boolean;
+  /** Icon-only trigger (phone table cells). */
+  iconOnly?: boolean;
   disabled?: boolean;
   id?: string;
 }
@@ -28,6 +31,7 @@ export function CategorySelect({
   onChange,
   label,
   compact = false,
+  iconOnly = false,
   disabled = false,
   id,
 }: Props) {
@@ -60,7 +64,7 @@ export function CategorySelect({
       setMenuPos({
         top: openUp ? rect.top - gap : rect.bottom + gap,
         left: rect.left,
-        minWidth: Math.max(rect.width, compact ? 72 : 96),
+        minWidth: Math.max(rect.width, iconOnly ? 112 : compact ? 72 : 96),
         openUp,
       });
     }
@@ -72,7 +76,7 @@ export function CategorySelect({
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", place, true);
     };
-  }, [open, compact]);
+  }, [open, compact, iconOnly]);
 
   useEffect(() => {
     if (!open) return;
@@ -215,7 +219,7 @@ export function CategorySelect({
 
   return (
     <div
-      className={`priority-picker${compact ? " is-compact" : ""}${open ? " is-open" : ""}`}
+      className={`priority-picker${compact ? " is-compact" : ""}${iconOnly ? " is-icon-only" : ""}${open ? " is-open" : ""}`}
       ref={rootRef}
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
@@ -226,6 +230,7 @@ export function CategorySelect({
         id={id}
         className={`priority-picker-trigger category-${cat}`}
         disabled={disabled}
+        title={selected}
         aria-label={label}
         aria-haspopup="listbox"
         aria-expanded={open}
@@ -233,10 +238,16 @@ export function CategorySelect({
         onClick={() => setOpen((v) => !v)}
         onKeyDown={onTriggerKeyDown}
       >
-        <span className="priority-picker-value">{selected}</span>
-        <span className="priority-picker-caret" aria-hidden="true">
-          ▾
-        </span>
+        {iconOnly ? (
+          <CategoryIcon category={selected} />
+        ) : (
+          <>
+            <span className="priority-picker-value">{selected}</span>
+            <span className="priority-picker-caret" aria-hidden="true">
+              ▾
+            </span>
+          </>
+        )}
       </button>
       {menu}
     </div>

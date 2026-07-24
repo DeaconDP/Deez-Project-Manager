@@ -20,6 +20,7 @@ import { AppChrome } from "./components/AppChrome";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { ImportMenu, type ImportKind } from "./components/ImportMenu";
 import { KanbanBoard } from "./components/KanbanBoard";
+import { ListViewMenu } from "./components/ListViewMenu";
 import { ProjectEditModal } from "./components/ProjectEditModal";
 import { ProjectsSkeleton } from "./components/ProjectsSkeleton";
 import { ProjectsTable } from "./components/ProjectsTable";
@@ -488,33 +489,6 @@ function App() {
               <>
                 <header className="page-header">
                   <div className="toolbar command-bar">
-                    <div
-                      className="view-toggle"
-                      role="group"
-                      aria-label="Project list"
-                    >
-                      <button
-                        type="button"
-                        className={
-                          listView === "active" ? "is-active" : undefined
-                        }
-                        aria-pressed={listView === "active"}
-                        onClick={() => setListView("active")}
-                      >
-                        Active
-                      </button>
-                      <button
-                        type="button"
-                        className={
-                          listView === "archive" ? "is-active" : undefined
-                        }
-                        aria-pressed={listView === "archive"}
-                        onClick={() => setListView("archive")}
-                      >
-                        Archive
-                        {archivedCount > 0 ? ` (${archivedCount})` : ""}
-                      </button>
-                    </div>
                     <label className="search-field">
                       <span className="sr-only">Search projects</span>
                       <input
@@ -526,6 +500,11 @@ function App() {
                       />
                     </label>
                     <div className="toolbar-actions">
+                      <ListViewMenu
+                        value={listView}
+                        archivedCount={archivedCount}
+                        onChange={setListView}
+                      />
                       <SyncMenu
                         roots={syncRoots}
                         busy={toolbar.busy}

@@ -28,7 +28,7 @@ npm run tauri dev
 
 Use the **Deez Project Manager desktop window**. Do not open `http://127.0.0.1:5187` in a browser — that Vite URL has no Tauri IPC and will error with `invoke`.
 
-On macOS, Finder may require approval the first time `run.command` opens Terminal. If macOS reports that the script is not executable, run `chmod +x run.command` once.
+On macOS, `run.command` starts (or attaches to) a tmux session named **`deez-pm`**. Reattach later with `tmux attach -t deez-pm`. Finder may require approval the first time it opens Terminal. If macOS reports that the script is not executable, run `chmod +x run.command` once.
 
 `run.bat`, `run.command`, and `tauri dev` are for development only. Do **not** pin or shortcut the debug executable — it needs Vite running and will open blank alone.
 
