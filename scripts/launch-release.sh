@@ -6,7 +6,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$PATH"
+export PATH="$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$PATH"
 
 APP="$ROOT/src-tauri/target/release/bundle/macos/Deez Project Manager.app"
 BIN="$ROOT/src-tauri/target/release/deez-project-manager"
@@ -24,10 +24,66 @@ log() {
   printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >>"$LOG"
 }
 
+write_status() {
+  local message="$1"
+  local progress="${2:-null}"
+  [ -n "${LAUNCH_STATUS_FILE:-}" ] || return 0
+  python3 - "$message" "$progress" "$LAUNCH_STATUS_FILE" <<'PY' 2>/dev/null || true
+import json, sys
+message, progress, path = sys.argv[1:4]
+payload = {"message": message, "progress": None if progress == "null" else float(progress), "done": False, "error": False}
+with open(path, "w", encoding="utf-8") as handle:
+    json.dump(payload, handle)
+PY
+}
+
+notify() {
+  local message="$1"
+  local progress="${2:-null}"
+  log "$message"
+  if [ -n "${LAUNCH_STATUS_FILE:-}" ]; then
+    write_status "$message" "$progress"
+  else
+    echo "$message"
+  fi
+}
+
 die() {
+  notify "$*" "" >/dev/null 2>&1 || true
   echo "$*" >&2
   log "fatal: $*"
   exit 1
+}
+
+BUILD_PROGRESS_PID=""
+BUILD_PROGRESS_FLAG=""
+
+start_build_progress() {
+  [ -n "${LAUNCH_STATUS_FILE:-}" ] || return 0
+  BUILD_PROGRESS_FLAG="${LAUNCH_STATUS_FILE}.building"
+  touch "$BUILD_PROGRESS_FLAG"
+  (
+    local p=20
+    while [ -f "$BUILD_PROGRESS_FLAG" ]; do
+      write_status "Building release app…" "$p"
+      if [ "$p" -lt 85 ]; then
+        p=$((p + 1))
+      fi
+      sleep 3
+    done
+  ) &
+  BUILD_PROGRESS_PID=$!
+}
+
+stop_build_progress() {
+  [ -n "$BUILD_PROGRESS_FLAG" ] || return 0
+  rm -f "$BUILD_PROGRESS_FLAG"
+  if [ -n "$BUILD_PROGRESS_PID" ]; then
+    kill "$BUILD_PROGRESS_PID" 2>/dev/null || true
+    wait "$BUILD_PROGRESS_PID" 2>/dev/null || true
+  fi
+  BUILD_PROGRESS_PID=""
+  BUILD_PROGRESS_FLAG=""
 }
 
 update_repo() {
@@ -38,12 +94,12 @@ update_repo() {
     log "git not found; skip pull"
     return 0
   fi
-  echo "Updating to latest..."
+  notify "Updating to latest…" 10
   log "git pull --ff-only started"
   if git pull --ff-only; then
     log "git pull succeeded"
   else
-    echo "git pull skipped (local changes or no fast-forward). Continuing with local tree."
+    notify "Continuing with local copy…" 15
     log "git pull failed; continuing"
   fi
 }
@@ -85,7 +141,38 @@ release_pids() {
 require_cmd() {
   local name="$1"
   local msg="$2"
+  # #region agent log
+  python3 - "$name" "$ROOT/.cursor/debug-d17f6e.log" <<'PY' 2>/dev/null || true
+import json, os, shutil, sys, time
+name, log_path = sys.argv[1:3]
+cargo_bin = os.path.join(os.path.expanduser("~"), ".cargo", "bin", name)
+payload = {
+    "sessionId": "d17f6e",
+    "hypothesisId": "H1-H2",
+    "location": "launch-release.sh:require_cmd",
+    "message": "command probe",
+    "data": {
+        "name": name,
+        "found": shutil.which(name) is not None,
+        "path": shutil.which(name) or "",
+        "cargoBinExists": os.path.isfile(cargo_bin),
+    },
+    "timestamp": int(time.time() * 1000),
+}
+with open(log_path, "a", encoding="utf-8") as handle:
+    handle.write(json.dumps(payload) + "\n")
+PY
+  # #endregion
   command -v "$name" >/dev/null || die "$msg"
+}
+
+install_npm_dependencies() {
+  require_cmd node "Node.js is required. Install from https://nodejs.org"
+  notify "Installing npm dependencies…" 18
+  log "npm install started"
+  npm install || die "npm install failed."
+  notify "Dependencies ready." 22
+  log "npm install succeeded"
 }
 
 build_release() {
@@ -103,27 +190,23 @@ build_release() {
     die "Rust 1.85 or newer is required (found $rust_version). Run: rustup update stable"
   fi
 
-  if [ ! -d "$ROOT/node_modules" ]; then
-    echo "Installing npm dependencies..."
-    log "npm install started"
-    npm install || die "npm install failed."
-  fi
-
-  echo "Building Deez Project Manager release app..."
+  notify "Building release app…" 25
   log "tauri build started"
+  start_build_progress
   if ! npm run tauri build; then
-    echo "tauri build failed."
+    stop_build_progress
+    notify "Build failed." 25
     log "tauri build failed"
     return 1
   fi
+  stop_build_progress
 
   if [ ! -d "$APP" ] && [ ! -x "$BIN" ]; then
-    echo "Build finished but app not found:"
-    echo "  $APP"
-    log "build finished but app missing"
+    log "build finished but app missing: $APP"
     return 1
   fi
 
+  notify "Build complete." 90
   log "tauri build succeeded"
   return 0
 }
@@ -132,12 +215,12 @@ start_release() {
   local pids
   pids="$(release_pids)"
   if [ -n "$pids" ]; then
-    echo "Deez Project Manager is already running."
+    notify "Already running — focusing app…" 95
     log "already running: pid(s) $(echo "$pids" | tr '\n' ' ')"
     return 0
   fi
 
-  echo "Launching Deez Project Manager..."
+  notify "Launching Deez Project Manager…" 95
   if [ -d "$APP" ]; then
     log "open app: $APP"
     open "$APP"
@@ -145,7 +228,6 @@ start_release() {
     log "start binary: $BIN"
     "$BIN" >/dev/null 2>&1 &
   else
-    echo "No release app is available to launch."
     log "launch failed: nothing to start"
     return 1
   fi
@@ -160,21 +242,21 @@ start_release() {
     fi
   done
 
-  # `open` can succeed while pgrep is still catching up; treat app presence as OK.
   if [ -d "$APP" ]; then
     log "launch assumed ok via open (pgrep timeout)"
     return 0
   fi
 
-  echo "Release app was started, but no matching process stayed running."
-  echo "Launch log: $LOG"
   log "launch verification failed"
   return 1
 }
 
 log "launcher start: rebuild=$REBUILD"
+notify "Preparing launch…" 5
 
 update_repo
+install_npm_dependencies
+notify "Checking release build…" 30
 
 APP_EXISTS=0
 SOURCE_NEWER=0
@@ -187,6 +269,27 @@ if [ -d "$APP" ] || [ -x "$BIN" ]; then
   fi
 fi
 log "after update: appExists=$APP_EXISTS sourceIsNewer=$SOURCE_NEWER"
+# #region agent log
+python3 - "$APP" "$BIN" "$APP_EXISTS" "$SOURCE_NEWER" "$ROOT/.cursor/debug-d17f6e.log" <<'PY' 2>/dev/null || true
+import json, os, sys, time
+app, bin_path, app_exists, source_newer, log_path = sys.argv[1:6]
+payload = {
+    "sessionId": "d17f6e",
+    "hypothesisId": "H3",
+    "location": "launch-release.sh:post-update",
+    "message": "release state",
+    "data": {
+        "appExists": int(app_exists),
+        "sourceIsNewer": int(source_newer),
+        "appDirExists": os.path.isdir(app),
+        "binExists": os.path.isfile(bin_path),
+    },
+    "timestamp": int(time.time() * 1000),
+}
+with open(log_path, "a", encoding="utf-8") as handle:
+    handle.write(json.dumps(payload) + "\n")
+PY
+# #endregion
 
 if [ "$APP_EXISTS" -eq 1 ] && [ "$REBUILD" -eq 0 ] && [ "$SOURCE_NEWER" -eq 0 ]; then
   if start_release; then
@@ -197,7 +300,7 @@ fi
 
 pids="$(release_pids)"
 if [ -n "$pids" ]; then
-  echo "Stopping running release app before rebuild..."
+  notify "Stopping running app before rebuild…" 35
   log "stopping release pid(s) $(echo "$pids" | tr '\n' ' ')"
   # shellcheck disable=SC2086
   kill $pids 2>/dev/null || true
@@ -210,23 +313,22 @@ if [ -n "$pids" ]; then
 fi
 
 if [ "$APP_EXISTS" -eq 0 ]; then
-  echo "Release app missing - building..."
+  notify "Release app missing — building…" 35
 elif [ "$REBUILD" -eq 1 ]; then
-  echo "Refresh requested - rebuilding release app..."
+  notify "Refresh requested — rebuilding…" 35
 else
-  echo "Source newer than release app - rebuilding before launch..."
+  notify "Source updated — rebuilding…" 35
   log "source newer; rebuild-first path"
 fi
 
 if ! build_release; then
   if [ -d "$APP" ] || [ -x "$BIN" ]; then
-    echo "Rebuild failed; launching the existing release app instead."
+    notify "Rebuild failed — launching existing app…" 90
     log "rebuild failed; fallback launch"
     start_release || true
     exit 1
   fi
-  echo "No release app is available to launch."
-  echo "Launch log: $LOG"
+  log "no release app available"
   exit 1
 fi
 

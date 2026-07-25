@@ -22,8 +22,9 @@ Created by deac.online @ worldbuild.io
 Double-click **`run.bat`**. It:
 
 1. `git pull --ff-only` when this is a git checkout (skips cleanly if dirty / no fast-forward)
-2. Rebuilds the release EXE when it is missing or source is newer
-3. Launches `src-tauri\target\release\deez-project-manager.exe`
+2. `npm install` (every launch)
+3. Rebuilds the release EXE when it is missing or source is newer
+4. Launches `src-tauri\target\release\deez-project-manager.exe`
 
 Force a rebuild: `run.bat --rebuild`. Create a Desktop shortcut to the same launcher: `run.bat --shortcut`.
 
@@ -38,8 +39,9 @@ Installers (optional): `src-tauri\target\release\bundle\nsis\` and `...\msi\`.
 Double-click **`run.command`** (or `chmod +x run.command` once if Finder complains). Same flow as Windows:
 
 1. `git pull --ff-only` when this is a git checkout
-2. Rebuilds the release `.app` when it is missing or source is newer
-3. Opens `src-tauri/target/release/bundle/macos/Deez Project Manager.app`
+2. `npm install` (every launch)
+3. Rebuilds the release `.app` when it is missing or source is newer
+4. Opens `src-tauri/target/release/bundle/macos/Deez Project Manager.app`
 
 Force a rebuild: `./run.command --rebuild`. Desktop alias: `./run.command --shortcut`.
 

@@ -92,21 +92,24 @@ function Require-Command {
   }
 }
 
+function Install-NpmDependencies {
+  Initialize-ExplorerPath
+  Require-Command "node" "Node.js is required. Install from https://nodejs.org"
+  Write-Host "Installing npm dependencies..."
+  Write-LaunchLog "npm install started"
+  npm install
+  if ($LASTEXITCODE -ne 0) {
+    Write-Host "npm install failed."
+    Write-LaunchLog "npm install failed with exit code $LASTEXITCODE"
+    exit 1
+  }
+  Write-LaunchLog "npm install succeeded"
+}
+
 function Build-ReleaseExe {
   Initialize-ExplorerPath
   Require-Command "node" "Node.js is required to rebuild. Install from https://nodejs.org"
   Require-Command "cargo" "Rust/Cargo is required to rebuild. Install from https://rustup.rs"
-
-  if (-not (Test-Path (Join-Path $repoRoot "node_modules"))) {
-    Write-Host "Installing npm dependencies..."
-    Write-LaunchLog "npm install started"
-    npm install
-    if ($LASTEXITCODE -ne 0) {
-      Write-Host "npm install failed."
-      Write-LaunchLog "npm install failed with exit code $LASTEXITCODE"
-      exit 1
-    }
-  }
 
   Write-Host "Building Deez Project Manager release EXE..."
   Write-LaunchLog "tauri build started"
@@ -175,6 +178,7 @@ $watchPaths = @(
 Write-LaunchLog "launcher start: rebuild=$Rebuild"
 
 Update-Repo
+Install-NpmDependencies
 
 $exeExists = Test-Path -LiteralPath $exe
 $sourceIsNewer = $false

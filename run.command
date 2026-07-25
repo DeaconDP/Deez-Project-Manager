@@ -2,7 +2,7 @@
 cd "$(dirname "$0")"
 ROOT="$(pwd)"
 
-export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$PATH"
+export PATH="$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$PATH"
 
 if [ "${1:-}" = "--shortcut" ]; then
   DEST="$HOME/Desktop/Deez Project Manager.command"
@@ -17,12 +17,5 @@ if [ "${1:-}" = "--shortcut" ]; then
   exit 0
 fi
 
-bash "$ROOT/scripts/launch-release.sh" "$@"
-status=$?
-if [ $status -ne 0 ]; then
-  echo
-  echo "Deez Project Manager failed to launch."
-  read -r
-  exit $status
-fi
-exit 0
+bash "$ROOT/scripts/launch-with-ui.sh" "$@"
+exit $?

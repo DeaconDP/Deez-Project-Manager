@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Deez Project Manager</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%;
+      background: #0a0b0f;
+      color: #e8eaef;
+      font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    body {
+      display: grid;
+      place-items: center;
+      padding: 32px;
+    }
+    .panel {
+      width: min(420px, 100%);
+      display: grid;
+      gap: 20px;
+    }
+    .brand {
+      font-family: "Space Grotesk", "Bahnschrift", sans-serif;
+      font-size: 1.35rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+    .message {
+      color: #8b90a0;
+      font-size: 0.95rem;
+      line-height: 1.45;
+      min-height: 1.45em;
+    }
+    .track {
+      height: 4px;
+      border-radius: 2px;
+      background: #171a24;
+      border: 1px solid #2a2e3a;
+      overflow: hidden;
+    }
+    .fill {
+      height: 100%;
+      width: 0%;
+      border-radius: 1px;
+      background: linear-gradient(90deg, #00b89a, #00e5c0);
+      transition: width 0.35s ease;
+    }
+    .fill.indeterminate {
+      width: 35%;
+      animation: slide 1.4s ease-in-out infinite;
+    }
+    @keyframes slide {
+      0% { transform: translateX(-120%); }
+      100% { transform: translateX(320%); }
+    }
+    .credit {
+      color: #5c6270;
+      font-size: 0.75rem;
+    }
+    .error .fill {
+      background: linear-gradient(90deg, #c43b52, #ff5c7a);
+    }
+    .error .message { color: #ff8ea0; }
+  </style>
+</head>
+<body>
+  <div class="panel" id="panel">
+    <div class="brand">Deez Project Manager</div>
+    <div class="message" id="message">Starting…</div>
+    <div class="track" aria-hidden="true">
+      <div class="fill indeterminate" id="fill"></div>
+    </div>
+    <div class="credit">deac.online · worldbuild.io</div>
+  </div>
+  <script>
+    const messageEl = document.getElementById('message');
+    const fillEl = document.getElementById('fill');
+    const panelEl = document.getElementById('panel');
+
+    function applyStatus(data) {
+      messageEl.textContent = data.message || 'Working…';
+      if (data.error) panelEl.classList.add('error');
+      if (data.progress == null || Number.isNaN(Number(data.progress))) {
+        fillEl.classList.add('indeterminate');
+        fillEl.style.width = '';
+        return;
+      }
+      fillEl.classList.remove('indeterminate');
+      fillEl.style.width = Math.max(0, Math.min(100, Number(data.progress))) + '%';
+    }
+
+    async function poll() {
+      try {
+        const res = await fetch('/status', { cache: 'no-store' });
+        if (res.ok) applyStatus(await res.json());
+      } catch {
+        // server may still be starting
+      }
+    }
+
+    poll();
+    setInterval(poll, 250);
+  </script>
+</body>
+</html>
