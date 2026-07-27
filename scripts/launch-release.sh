@@ -141,28 +141,6 @@ release_pids() {
 require_cmd() {
   local name="$1"
   local msg="$2"
-  # #region agent log
-  python3 - "$name" "$ROOT/.cursor/debug-d17f6e.log" <<'PY' 2>/dev/null || true
-import json, os, shutil, sys, time
-name, log_path = sys.argv[1:3]
-cargo_bin = os.path.join(os.path.expanduser("~"), ".cargo", "bin", name)
-payload = {
-    "sessionId": "d17f6e",
-    "hypothesisId": "H1-H2",
-    "location": "launch-release.sh:require_cmd",
-    "message": "command probe",
-    "data": {
-        "name": name,
-        "found": shutil.which(name) is not None,
-        "path": shutil.which(name) or "",
-        "cargoBinExists": os.path.isfile(cargo_bin),
-    },
-    "timestamp": int(time.time() * 1000),
-}
-with open(log_path, "a", encoding="utf-8") as handle:
-    handle.write(json.dumps(payload) + "\n")
-PY
-  # #endregion
   command -v "$name" >/dev/null || die "$msg"
 }
 
@@ -173,6 +151,72 @@ install_npm_dependencies() {
   npm install || die "npm install failed."
   notify "Dependencies ready." 22
   log "npm install succeeded"
+}
+
+# Cargo embeds absolute OUT_DIR paths in target/. After moving the repo,
+# those paths break Tauri permission lookup. Purge when foreign paths are found.
+purge_stale_cargo_target() {
+  local result sample
+  result="$(python3 - "$ROOT" <<'PY' 2>/dev/null || true
+import json, os, sys, time
+root = sys.argv[1]
+target_root = os.path.join(root, "src-tauri", "target")
+expected_prefix = target_root + os.sep
+stale_hits = 0
+sample = ""
+if os.path.isdir(target_root):
+    for dirpath, _, filenames in os.walk(target_root):
+        for name in filenames:
+            if name not in ("output", "root-output"):
+                continue
+            path = os.path.join(dirpath, name)
+            try:
+                text = open(path, encoding="utf-8", errors="ignore").read()
+            except OSError:
+                continue
+            for line in text.splitlines():
+                value = line.split("=", 1)[-1].strip()
+                if not value.startswith("/"):
+                    continue
+                if "Deez-Project-Manager" not in value and "src-tauri/target" not in value:
+                    continue
+                if not value.startswith(expected_prefix):
+                    stale_hits += 1
+                    if not sample:
+                        sample = value
+                    break
+payload = {
+    "sessionId": "581201",
+    "runId": "post-fix",
+    "hypothesisId": "H1",
+    "location": "launch-release.sh:purge_stale_cargo_target",
+    "message": "stale cargo target scan",
+    "data": {"root": root, "staleHits": stale_hits, "sample": sample[:300]},
+    "timestamp": int(time.time() * 1000),
+}
+for log_path in (
+    "/Users/epic/Desktop/Projects/Bot Projects/Cursor/Deez-Project-Manager/.cursor/debug-581201.log",
+    os.path.join(root, ".cursor", "debug-581201.log"),
+):
+    try:
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        with open(log_path, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload) + "\n")
+    except OSError:
+        pass
+print(f"{stale_hits}\t{sample}")
+PY
+)"
+  sample="${result#*$'\t'}"
+  local stale_hits="${result%%$'\t'*}"
+  [ -n "$stale_hits" ] || return 0
+  [ "$stale_hits" -gt 0 ] 2>/dev/null || return 0
+
+  notify "Clearing stale build cache (project moved)…" 28
+  log "stale cargo target paths detected ($stale_hits); sample=$sample"
+  log "cargo clean started"
+  (cd "$ROOT/src-tauri" && cargo clean) || die "cargo clean failed after project move."
+  log "cargo clean succeeded"
 }
 
 build_release() {
@@ -190,15 +234,66 @@ build_release() {
     die "Rust 1.85 or newer is required (found $rust_version). Run: rustup update stable"
   fi
 
+  purge_stale_cargo_target
+
   notify "Building release app…" 25
   log "tauri build started"
   start_build_progress
-  if ! npm run tauri build; then
+  local build_out build_status
+  build_out="$(mktemp "${TMPDIR:-/tmp}/deez-pm-build.XXXXXX")"
+  set +e
+  npm run tauri build >"$build_out" 2>&1
+  build_status=$?
+  set -e
+  cat "$build_out" >>"$LOG"
+  if [ "$build_status" -ne 0 ]; then
     stop_build_progress
+    # #region agent log
+    python3 - "$ROOT" "$build_out" <<'PY' 2>/dev/null || true
+import json, os, re, sys, time
+root, out_path = sys.argv[1:3]
+try:
+    text = open(out_path, encoding="utf-8", errors="ignore").read()
+except OSError:
+    text = ""
+err_line = ""
+for line in text.splitlines():
+    if "failed to read" in line or "No such file" in line or "Error failed" in line:
+        err_line = line.strip()
+        break
+old_refs = len(re.findall(r"Bot Projects/Cursor/Deez-Project-Manager", text))
+payload = {
+    "sessionId": "581201",
+    "runId": "post-fix",
+    "hypothesisId": "H1",
+    "location": "launch-release.sh:build_release:fail",
+    "message": "tauri build failed",
+    "data": {
+        "root": root,
+        "oldPathRefsInOutput": old_refs,
+        "errorLine": err_line[:500],
+        "exitCode": 1,
+    },
+    "timestamp": int(time.time() * 1000),
+}
+for log_path in (
+    "/Users/epic/Desktop/Projects/Bot Projects/Cursor/Deez-Project-Manager/.cursor/debug-581201.log",
+    os.path.join(root, ".cursor", "debug-581201.log"),
+):
+    try:
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        with open(log_path, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload) + "\n")
+    except OSError:
+        pass
+PY
+    # #endregion
+    rm -f "$build_out"
     notify "Build failed." 25
     log "tauri build failed"
     return 1
   fi
+  rm -f "$build_out"
   stop_build_progress
 
   if [ ! -d "$APP" ] && [ ! -x "$BIN" ]; then
@@ -206,6 +301,31 @@ build_release() {
     return 1
   fi
 
+  # #region agent log
+  python3 - "$ROOT" <<'PY' 2>/dev/null || true
+import json, os, sys, time
+root = sys.argv[1]
+payload = {
+    "sessionId": "581201",
+    "runId": "post-fix",
+    "hypothesisId": "H1",
+    "location": "launch-release.sh:build_release:ok",
+    "message": "tauri build succeeded",
+    "data": {"root": root},
+    "timestamp": int(time.time() * 1000),
+}
+for log_path in (
+    "/Users/epic/Desktop/Projects/Bot Projects/Cursor/Deez-Project-Manager/.cursor/debug-581201.log",
+    os.path.join(root, ".cursor", "debug-581201.log"),
+):
+    try:
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        with open(log_path, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload) + "\n")
+    except OSError:
+        pass
+PY
+  # #endregion
   notify "Build complete." 90
   log "tauri build succeeded"
   return 0
@@ -270,24 +390,35 @@ if [ -d "$APP" ] || [ -x "$BIN" ]; then
 fi
 log "after update: appExists=$APP_EXISTS sourceIsNewer=$SOURCE_NEWER"
 # #region agent log
-python3 - "$APP" "$BIN" "$APP_EXISTS" "$SOURCE_NEWER" "$ROOT/.cursor/debug-d17f6e.log" <<'PY' 2>/dev/null || true
+python3 - "$APP" "$BIN" "$APP_EXISTS" "$SOURCE_NEWER" "$ROOT" "$REBUILD" <<'PY' 2>/dev/null || true
 import json, os, sys, time
-app, bin_path, app_exists, source_newer, log_path = sys.argv[1:6]
+app, bin_path, app_exists, source_newer, root, rebuild = sys.argv[1:7]
 payload = {
-    "sessionId": "d17f6e",
+    "sessionId": "581201",
+    "runId": "pre-fix",
     "hypothesisId": "H3",
     "location": "launch-release.sh:post-update",
     "message": "release state",
     "data": {
         "appExists": int(app_exists),
         "sourceIsNewer": int(source_newer),
+        "rebuildFlag": int(rebuild),
         "appDirExists": os.path.isdir(app),
         "binExists": os.path.isfile(bin_path),
+        "root": root,
     },
     "timestamp": int(time.time() * 1000),
 }
-with open(log_path, "a", encoding="utf-8") as handle:
-    handle.write(json.dumps(payload) + "\n")
+for log_path in (
+    "/Users/epic/Desktop/Projects/Bot Projects/Cursor/Deez-Project-Manager/.cursor/debug-581201.log",
+    os.path.join(root, ".cursor", "debug-581201.log"),
+):
+    try:
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        with open(log_path, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload) + "\n")
+    except OSError:
+        pass
 PY
 # #endregion
 
