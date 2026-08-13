@@ -1,84 +1,49 @@
 # Deez Project Manager
 
-Tauri desktop app for macOS and Windows for your Unity / Unreal / Web / consulting portfolio backlog. Replaces day-to-day Unity Hub + VCC project lists and the spreadsheet’s project registry (Priority, Platform, Category, Location, GitHub status) with drag-and-drop sort that autosaves locally.
+<p align="center">
+  <img src="https://cdn.jsdelivr.net/gh/DeaconDP/Deez-Project-Manager@PLACEHOLDER/docs/screenshots/hero.png" alt="Deez Project Manager" width="720" />
+</p>
 
-Also includes **Ada-Monitor** machine + AI Fuel views: slim CPU/RAM/GPU/Disk glance in the header, and tabs for Overview, Processes (CPU/Network/USB/Spikes), Fuel, and Settings.
+Tauri portfolio project manager for Unity / Unreal / Web / consulting backlog — plus Ada-Monitor machine and AI Fuel views.
 
-Created by deac.online @ worldbuild.io
+![License: MIT](https://img.shields.io/badge/license-MIT-blue)
+![Platform: macOS · Windows](https://img.shields.io/badge/platform-macOS%20%20%7C%20%20Windows-informational)
 
-## Local URL
+## Who it’s for
 
-**http://127.0.0.1:5187** (Vite `strictPort` — does not hop)
+Builders juggling many local projects who want Hub/VCC-style lists, drag-and-drop priority, and a glance at CPU/RAM/GPU/disk and AI usage caps.
 
-## Requirements
+## Quick start
 
-- Node.js 20+
-- Current stable Rust through [rustup](https://rustup.rs) (selected per project by `rust-toolchain.toml`)
-- macOS: Xcode Command Line Tools (`xcode-select --install`); Apple Silicon and Intel are supported for local development
-- Windows: Microsoft C++ Build Tools and WebView2 for Tauri
+**Requires** Node.js 20+, Rust, Xcode CLT (macOS) or MSVC + WebView2 (Windows).
 
-## Run (Windows)
+| Platform | How |
+|--|--|
+| macOS | Double-click **`run.command`** |
+| Windows | Double-click **`run.bat`** |
 
-Double-click **`run.bat`**. It:
+Launches the **release** desktop app (not a browser tab). Dev HMR: `npm run tauri:dev` — use the native window, not `:5194` alone.
 
-1. `git pull --ff-only` when this is a git checkout (skips cleanly if dirty / no fast-forward)
-2. `npm install` (every launch)
-3. Rebuilds the release EXE when it is missing or source is newer
-4. Launches `src-tauri\target\release\deez-project-manager.exe`
+## Features
 
-Force a rebuild: `run.bat --rebuild`. Create a Desktop shortcut to the same launcher: `run.bat --shortcut`.
+- Projects table with Priority, Platform, Category, GitHub status
+- Drag-and-drop reorder; autosave to app data
+- Import from Unity Hub / VCC; add local folders; GitHub import
+- Ada-Monitor: Overview, Processes, Fuel, Settings
 
-Do **not** pin the debug EXE or open `http://127.0.0.1:5187` in a browser — that Vite URL has no Tauri IPC.
+## Limitations
 
-**Open on startup** registers the **release EXE** (not `run.bat`) under the Windows Run key so login stays fast. The next `run.bat` / Desktop shortcut launch picks up source changes. Enabling the toggle under `tauri dev` is disabled. After the first release launch, turn **Open on startup** back on if you want login autostart.
+- Not a full Unity Hub / VCC replacement (see ROADMAP.md)
+- Some macOS metrics (Apple GPU temps, Wi‑Fi, USB topology) show unavailable states
 
-Installers (optional): `src-tauri\target\release\bundle\nsis\` and `...\msi\`.
+## Development
 
-## Run (macOS)
+Sticky Vite port **5194** for `tauri:dev` webview only.
 
-Double-click **`run.command`** (or `chmod +x run.command` once if Finder complains). Same flow as Windows:
+## Credit
 
-1. `git pull --ff-only` when this is a git checkout
-2. `npm install` (every launch)
-3. Rebuilds the release `.app` when it is missing or source is newer
-4. Opens `src-tauri/target/release/bundle/macos/Deez Project Manager.app`
-
-Force a rebuild: `./run.command --rebuild`. Desktop alias: `./run.command --shortcut`.
-
-Signed/notarized `.dmg` distribution is not included yet; this launches the local release build.
-
-## Development HMR
-
-```bash
-npm install
-npm run tauri dev
-```
-
-Use the desktop window — not a browser tab on `:5187`.
-
-## v1 features
-
-- Dense projects table (Hub/VCC-style)
-- Fields: Name, Priority, Platform, Category (VR/AR/Utility/Web/Game/Client/Bot/Backup/Other), GitHub status (+ Location, path, agency/client/year in edit)
-- Drag-and-drop reorder → autosaved to app data (`projects.json`)
-- Add local project folder (Unity version + git remote probe)
-- Import projects from Unity Hub (`projects-v1.json`) and VCC (`settings.json` userProjects)
-- Open with Unity when possible, else the platform file manager
-- Import public GitHub repos for [DeaconDP](https://github.com/DeaconDP?tab=repositories)
-- Refresh local git clean/dirty/ahead/behind status
-
-## Not in v1
-
-Full Unity Hub installs UI, VCC package/create-project, cashflow ledger, cross-device sync — see [ROADMAP.md](ROADMAP.md).
-
-## Data
-
-Projects persist under the OS app-data directory for identifier `com.deez.projectmanager` (for example `%APPDATA%\com.deez.projectmanager\projects.json` on Windows or the app-support directory under `~/Library` on macOS). Removing a row from the list does **not** delete files on disk.
-
-## macOS monitor limitations
-
-Core CPU, RAM, disk, host-network, process, project, kanban, GitHub, and Fuel features run on macOS. Native Apple GPU metrics, CPU temperatures, Wi‑Fi details, USB topology, and per-process TCP ownership are not implemented yet; those views show explicit unavailable states instead of fabricated values.
+Created by [deac.online](https://deac.online) @ [worldbuild.io](https://worldbuild.io)
 
 ## License
 
-[MIT](LICENSE)
+MIT — see [LICENSE](LICENSE).
