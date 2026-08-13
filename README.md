@@ -1,7 +1,7 @@
 # Deez Project Manager
 
 <p align="center">
-  <img src="https://cdn.jsdelivr.net/gh/DeaconDP/Deez-Project-Manager@PLACEHOLDER/docs/screenshots/hero.png" alt="Deez Project Manager" width="720" />
+  <img src="https://cdn.jsdelivr.net/gh/DeaconDP/Deez-Project-Manager@452d64c639468fb0e3d491aab4fad485ed3fd195/docs/screenshots/hero.png" alt="Deez Project Manager" width="720" />
 </p>
 
 Tauri portfolio project manager for Unity / Unreal / Web / consulting backlog — plus Ada-Monitor machine and AI Fuel views.
