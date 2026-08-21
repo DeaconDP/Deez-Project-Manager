@@ -41,6 +41,10 @@ export interface Project {
   githubUrl: string | null;
   githubRepo: string | null;
   githubStatus: GithubStatus;
+  gitAhead: number;
+  gitBehind: number;
+  gitBranch: string | null;
+  gitDirty: boolean;
   favorite: boolean;
   archived: boolean;
   notes: string;
@@ -50,6 +54,15 @@ export interface Project {
   client?: string;
   year?: number;
   updatedAt: string;
+}
+
+export interface GitSyncUpdated {
+  id: string;
+  githubStatus: GithubStatus;
+  gitAhead: number;
+  gitBehind: number;
+  gitBranch: string | null;
+  gitDirty: boolean;
 }
 
 export type KanbanColumn =
@@ -288,6 +301,10 @@ export function createEmptyProject(partial?: Partial<Project>): Project {
     githubUrl: null,
     githubRepo: null,
     githubStatus: "none",
+    gitAhead: 0,
+    gitBehind: 0,
+    gitBranch: null,
+    gitDirty: false,
     favorite: false,
     archived: false,
     notes: "",
@@ -298,7 +315,24 @@ export function createEmptyProject(partial?: Partial<Project>): Project {
   };
 }
 
-export function githubStatusLabel(status: GithubStatus): string {
+/** Glance rank for GitHub column sort — behind / diverged float first. */
+export const GITHUB_STATUS_SORT_RANK: Record<GithubStatus, number> = {
+  behind: 0,
+  diverged: 1,
+  ahead: 2,
+  dirty: 3,
+  error: 4,
+  "remote-only": 5,
+  clean: 6,
+  none: 7,
+};
+
+export function githubStatusLabel(
+  status: GithubStatus,
+  project?: Pick<Project, "gitAhead" | "gitBehind">,
+): string {
+  const ahead = project?.gitAhead ?? 0;
+  const behind = project?.gitBehind ?? 0;
   switch (status) {
     case "none":
       return "—";
@@ -309,12 +343,23 @@ export function githubStatusLabel(status: GithubStatus): string {
     case "dirty":
       return "Dirty";
     case "ahead":
-      return "Ahead";
+      return ahead > 0 ? `Ahead · ${ahead}` : "Ahead";
     case "behind":
-      return "Behind";
+      return behind > 0 ? `Behind · ${behind}` : "Behind";
     case "diverged":
-      return "Diverged";
+      return `Diverged · ↑${ahead} ↓${behind}`;
     case "error":
       return "Error";
   }
+}
+
+export function githubStatusTooltip(project: Project): string {
+  let label = githubStatusLabel(project.githubStatus, project);
+  if (project.gitBranch?.trim()) {
+    label = `${label} · ${project.gitBranch.trim()}`;
+  }
+  if (project.gitDirty && project.githubStatus !== "dirty") {
+    label = `${label} (uncommitted changes)`;
+  }
+  return label;
 }

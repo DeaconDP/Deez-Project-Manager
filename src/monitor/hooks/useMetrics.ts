@@ -30,12 +30,20 @@ function isHidden(): boolean {
   return typeof document !== "undefined" && document.visibilityState === "hidden";
 }
 
-export function useMetrics() {
+type Options = {
+  /** Prefer idle sampler pace while the window is visible (Projects-only sessions). */
+  preferSlow?: boolean;
+};
+
+export function useMetrics(options: Options = {}) {
+  const { preferSlow = false } = options;
   const [snap, setSnap] = useState<MetricsSnapshot>(empty);
   const [spikes, setSpikes] = useState<SpikeEvent[]>([]);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const hiddenRef = useRef(isHidden());
+  const preferSlowRef = useRef(preferSlow);
+  preferSlowRef.current = preferSlow;
 
   useEffect(() => {
     let unlistenSnap: (() => void) | undefined;
@@ -75,22 +83,23 @@ export function useMetrics() {
   }, []);
 
   useEffect(() => {
-    function syncVisibility() {
+    function syncPace() {
       const hidden = isHidden();
       hiddenRef.current = hidden;
-      void setSamplerPace(hidden ? "idle" : "active");
+      const idle = hidden || preferSlowRef.current;
+      void setSamplerPace(idle ? "idle" : "active");
       if (!hidden) {
         void fetchSnapshot()
           .then(setSnap)
           .catch(() => {});
       }
     }
-    syncVisibility();
-    document.addEventListener("visibilitychange", syncVisibility);
+    syncPace();
+    document.addEventListener("visibilitychange", syncPace);
     return () => {
-      document.removeEventListener("visibilitychange", syncVisibility);
+      document.removeEventListener("visibilitychange", syncPace);
     };
-  }, []);
+  }, [preferSlow]);
 
   return { snap, spikes, setSpikes, ready, error };
 }

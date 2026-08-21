@@ -1,12 +1,11 @@
 import { buildFuelOverviewSources } from "../lib/fuelCaps";
-import { useFuelUsage } from "../hooks/useFuelUsage";
-import { useMetrics } from "../hooks/useMetrics";
+import { useSharedFuel, useSharedMetrics } from "./MetricsChrome";
 import { OverviewPanel } from "./OverviewPanel";
 
-/** Mounts metrics + fuel only while Overview is visible. */
+/** Consumes shared metrics + fuel from MetricsChromeProvider. */
 export function OverviewTab() {
-  const { snap } = useMetrics();
-  const fuel = useFuelUsage();
+  const { snap } = useSharedMetrics();
+  const fuel = useSharedFuel();
   const fuelSources = buildFuelOverviewSources(fuel.settings, fuel.snapshot);
   return <OverviewPanel snap={snap} fuelSources={fuelSources} />;
 }

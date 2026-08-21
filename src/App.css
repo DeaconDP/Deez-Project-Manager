@@ -1752,13 +1752,32 @@ button[aria-busy="true"]:disabled {
   color: var(--accent-2);
 }
 
-.gh-ahead,
+.gh-ahead {
+  color: var(--accent);
+}
+
 .gh-behind {
   color: #ffc857;
 }
 
 .gh-remote-only {
   color: #9aa0b0;
+}
+
+/* Sync-attention outline — priority left bar stays via box-shadow */
+.project-row.git-row-behind {
+  outline: 1.5px solid color-mix(in srgb, #ffc857 88%, transparent);
+  outline-offset: -2px;
+}
+
+.project-row.git-row-ahead {
+  outline: 1.5px solid color-mix(in srgb, var(--accent) 75%, transparent);
+  outline-offset: -2px;
+}
+
+.project-row.git-row-diverged {
+  outline: 1.5px solid color-mix(in srgb, var(--accent-2) 80%, transparent);
+  outline-offset: -2px;
 }
 
 .empty-state {

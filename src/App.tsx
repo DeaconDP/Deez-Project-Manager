@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
 import {
   addSyncRoot,
+  checkPathsExist,
   importGithubRepos,
   importLocalFolders,
   importUnityHub,
@@ -9,6 +10,7 @@ import {
   openUnityProject,
   pickProjectFolder,
   pickProjectFolders,
+  onGitSyncUpdated,
   refreshGithubStatuses,
   removeSyncRoot,
   runProject,
@@ -19,7 +21,6 @@ import { ActionFeedback } from "./components/ActionFeedback";
 import { AppChrome } from "./components/AppChrome";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { ImportMenu, type ImportKind } from "./components/ImportMenu";
-import { KanbanBoard } from "./components/KanbanBoard";
 import { ListViewMenu } from "./components/ListViewMenu";
 import { ProjectEditModal } from "./components/ProjectEditModal";
 import { ProjectsSkeleton } from "./components/ProjectsSkeleton";
@@ -37,15 +38,39 @@ import {
   MetricsGlanceSlot,
   MetricsLiveSlot,
 } from "./monitor/components/MetricsChrome";
-import { FuelTab } from "./monitor/components/FuelTab";
-import { OverviewTab } from "./monitor/components/OverviewTab";
-import { ProcessesHub } from "./monitor/components/ProcessesHub";
-import { SettingsPanel } from "./monitor/components/SettingsPanel";
 import type { Project } from "./types";
 import "./App.css";
 import "./monitor/monitor.css";
 
-type ToolbarAction = "refresh" | ImportKind | "add" | "sync" | "sync-manage";
+const KanbanBoard = lazy(() =>
+  import("./components/KanbanBoard").then((m) => ({ default: m.KanbanBoard })),
+);
+const OverviewTab = lazy(() =>
+  import("./monitor/components/OverviewTab").then((m) => ({
+    default: m.OverviewTab,
+  })),
+);
+const ProcessesHub = lazy(() =>
+  import("./monitor/components/ProcessesHub").then((m) => ({
+    default: m.ProcessesHub,
+  })),
+);
+const FuelTab = lazy(() =>
+  import("./monitor/components/FuelTab").then((m) => ({ default: m.FuelTab })),
+);
+const SettingsPanel = lazy(() =>
+  import("./monitor/components/SettingsPanel").then((m) => ({
+    default: m.SettingsPanel,
+  })),
+);
+
+type ToolbarAction =
+  | "refresh"
+  | "prune"
+  | ImportKind
+  | "add"
+  | "sync"
+  | "sync-manage";
 type RowBusy = { id: string; kind: "open" | "reveal" | "run" };
 type AppTab = "projects" | "overview" | "processes" | "fuel" | "settings";
 type ProcessView = "cpu" | "network" | "usb" | "spikes";
@@ -69,9 +94,11 @@ function App() {
     error,
     setError,
     replaceAll,
+    applyGitSyncUpdate,
     setSyncRoots,
     upsert,
     setArchived,
+    removeByIds,
     reorder,
     toggleFavorite,
     setPriority,
@@ -158,6 +185,24 @@ function App() {
   );
 
   useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    let cancelled = false;
+    void onGitSyncUpdated((update) => {
+      applyGitSyncUpdate(update);
+    }).then((fn) => {
+      if (cancelled) {
+        fn();
+        return;
+      }
+      unlisten = fn;
+    });
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [applyGitSyncUpdate]);
+
+  useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName;
@@ -177,10 +222,31 @@ function App() {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    let cancelled = false;
+    void onGitSyncUpdated((update) => {
+      applyGitSyncUpdate(update);
+    }).then((fn) => {
+      if (cancelled) fn();
+      else unlisten = fn;
+    });
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [applyGitSyncUpdate]);
+
   async function runToolbar(
     action: ToolbarAction,
-    work: () => Promise<string | void>,
-    messages?: { loading?: string; success?: string },
+    work: () => Promise<
+      string | void | { message: string; persist?: boolean }
+    >,
+    messages?: {
+      loading?: string;
+      success?: string;
+      persistSuccess?: boolean;
+    },
   ) {
     setToolbarAction(action);
     try {
@@ -305,6 +371,39 @@ function App() {
     );
   }
 
+  async function handleRefreshFolders() {
+    await runToolbar(
+      "prune",
+      async () => {
+        const withPaths = projects.filter(
+          (p) => p.localPath != null && p.localPath.trim() !== "",
+        );
+        const paths = withPaths.map((p) => p.localPath!);
+        const exists = await checkPathsExist(paths);
+        const missing = withPaths
+          .filter((_, i) => !exists[i])
+          .map((p) => ({ id: p.id, localPath: p.localPath! }));
+        if (missing.length === 0) {
+          return "All project folders are available";
+        }
+        removeByIds(missing.map((m) => m.id));
+        if (
+          boardProjectId &&
+          missing.some((m) => m.id === boardProjectId)
+        ) {
+          setBoardProjectId(null);
+        }
+        const pathList = missing.map((m) => m.localPath).join(", ");
+        const n = missing.length;
+        return {
+          message: `Removed ${n} missing project folder${n === 1 ? "" : "s"}: ${pathList}`,
+          persist: true,
+        };
+      },
+      { loading: "Refreshing folders…" },
+    );
+  }
+
   async function handleOpen(project: Project) {
     if (!project.localPath) {
       openAction.setFeedback({
@@ -368,9 +467,9 @@ function App() {
     setRowBusy(null);
   }
 
-  function handleArchiveRequest(project: Project) {
+  const handleArchiveRequest = useCallback((project: Project) => {
     setArchiveTarget(project);
-  }
+  }, []);
 
   function handleArchiveConfirm() {
     if (archiveTarget) {
@@ -379,9 +478,42 @@ function App() {
     }
   }
 
-  function handleRestore(project: Project) {
-    setArchived(project.id, false);
-  }
+  const handleRestore = useCallback(
+    (project: Project) => {
+      setArchived(project.id, false);
+    },
+    [setArchived],
+  );
+
+  const onOpenBoard = useCallback((p: Project) => {
+    setBoardProjectId(p.id);
+  }, []);
+
+  const openHandlersRef = useRef({
+    open: handleOpen,
+    run: handleRun,
+    reveal: handleReveal,
+    add: handleAddFolder,
+  });
+  openHandlersRef.current = {
+    open: handleOpen,
+    run: handleRun,
+    reveal: handleReveal,
+    add: handleAddFolder,
+  };
+
+  const onOpenProject = useCallback((p: Project) => {
+    void openHandlersRef.current.open(p);
+  }, []);
+  const onRunProject = useCallback((p: Project) => {
+    void openHandlersRef.current.run(p);
+  }, []);
+  const onRevealProject = useCallback((p: Project) => {
+    void openHandlersRef.current.reveal(p);
+  }, []);
+  const onAddFolder = useCallback(() => {
+    void openHandlersRef.current.add();
+  }, []);
 
   const importBusy: ImportKind | null =
     toolbarAction === "hub" ||
@@ -391,8 +523,8 @@ function App() {
       : null;
 
   return (
+    <MetricsChromeProvider preferSlow={tab === "projects"}>
     <div className="app-shell" data-layout={layout}>
-      <MetricsChromeProvider>
         <AppChrome
           title={appTitle}
           onTitleChange={setAppTitle}
@@ -406,8 +538,8 @@ function App() {
                 onClick={() => void handleRefreshStatuses()}
                 disabled={toolbar.busy}
                 aria-busy={toolbarAction === "refresh"}
-                aria-label="Refresh GitHub statuses"
-                title="Refresh GitHub statuses"
+                aria-label="Refresh git statuses"
+                title="Refresh git statuses (then fetch remotes in background)"
               >
                 {toolbarAction === "refresh" ? <Spinner size="sm" /> : "↻"}
               </button>
@@ -432,7 +564,6 @@ function App() {
             ) : null
           }
         />
-      </MetricsChromeProvider>
 
       <nav className="app-tabs" role="tablist" aria-label="Sections">
         {APP_TABS.map((t) => (
@@ -479,12 +610,14 @@ function App() {
             aria-labelledby="tab-projects"
           >
             {boardProject ? (
-              <KanbanBoard
-                project={boardProject}
-                allTasks={tasks}
-                mutations={taskMutations}
-                onBack={() => setBoardProjectId(null)}
-              />
+              <Suspense fallback={<ProjectsSkeleton />}>
+                <KanbanBoard
+                  project={boardProject}
+                  allTasks={tasks}
+                  mutations={taskMutations}
+                  onBack={() => setBoardProjectId(null)}
+                />
+              </Suspense>
             ) : (
               <>
                 <header className="page-header">
@@ -525,6 +658,22 @@ function App() {
                         onImportVcc={() => void handleImportVcc()}
                         onImportGithub={() => void handleImportGithub()}
                       />
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        disabled={toolbar.busy}
+                        aria-busy={toolbarAction === "prune"}
+                        onClick={() => void handleRefreshFolders()}
+                      >
+                        {toolbarAction === "prune" ? (
+                          <span className="btn-busy-label">
+                            <Spinner size="sm" />
+                            Refreshing…
+                          </span>
+                        ) : (
+                          "Refresh"
+                        )}
+                      </button>
                       <button
                         type="button"
                         className="btn-primary toolbar-add"
@@ -589,11 +738,7 @@ function App() {
                         ? "Archived projects appear here and can be restored anytime."
                         : "Add a local folder, Sync a parent, or import from Hub, VCC, or GitHub."
                     }
-                    onAdd={
-                      listView === "active"
-                        ? () => void handleAddFolder()
-                        : undefined
-                    }
+                    onAdd={listView === "active" ? onAddFolder : undefined}
                     addBusy={toolbarAction === "add"}
                     addDisabled={toolbar.busy}
                     onReorder={reorder}
@@ -601,10 +746,10 @@ function App() {
                     onPriorityChange={setPriority}
                     onCategoryChange={setCategory}
                     onStatusChange={setStatus}
-                    onOpenBoard={(p) => setBoardProjectId(p.id)}
-                    onOpen={(p) => void handleOpen(p)}
-                    onRun={(p) => void handleRun(p)}
-                    onReveal={(p) => void handleReveal(p)}
+                    onOpenBoard={onOpenBoard}
+                    onOpen={onOpenProject}
+                    onRun={onRunProject}
+                    onReveal={onRevealProject}
                     onEdit={setEditing}
                     onArchive={handleArchiveRequest}
                     onRestore={handleRestore}
@@ -622,7 +767,9 @@ function App() {
             id="panel-overview"
             aria-labelledby="tab-overview"
           >
-            <OverviewTab />
+            <Suspense fallback={<ProjectsSkeleton />}>
+              <OverviewTab />
+            </Suspense>
           </div>
         ) : null}
 
@@ -633,10 +780,12 @@ function App() {
             id="panel-processes"
             aria-labelledby="tab-processes"
           >
-            <ProcessesHub
-              processView={processView}
-              onProcessViewChange={setProcessView}
-            />
+            <Suspense fallback={<ProjectsSkeleton />}>
+              <ProcessesHub
+                processView={processView}
+                onProcessViewChange={setProcessView}
+              />
+            </Suspense>
           </div>
         ) : null}
 
@@ -647,7 +796,9 @@ function App() {
             id="panel-fuel"
             aria-labelledby="tab-fuel"
           >
-            <FuelTab />
+            <Suspense fallback={<ProjectsSkeleton />}>
+              <FuelTab />
+            </Suspense>
           </div>
         ) : null}
 
@@ -658,7 +809,9 @@ function App() {
             id="panel-settings"
             aria-labelledby="tab-settings"
           >
-            <SettingsPanel />
+            <Suspense fallback={<ProjectsSkeleton />}>
+              <SettingsPanel />
+            </Suspense>
           </div>
         ) : null}
       </main>
@@ -684,6 +837,7 @@ function App() {
         onCancel={() => setArchiveTarget(null)}
       />
     </div>
+    </MetricsChromeProvider>
   );
 }
 

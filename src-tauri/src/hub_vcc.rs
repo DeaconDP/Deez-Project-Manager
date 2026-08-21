@@ -231,29 +231,38 @@ pub fn read_vcc_projects() -> Result<Vec<DiscoveredProject>, String> {
     Ok(out)
 }
 
-pub fn enrich_discovered(mut discovered: DiscoveredProject) -> DiscoveredProject {
-    let probe = project_fs::probe_project(&discovered.path);
+/// Enrich with filesystem engine detection. When `include_git` is true, also
+/// resolve `git remote` (needed for new/link candidates). Skip git for paths
+/// already tracked — Sync All over fat parents stays cheap.
+pub fn enrich_discovered(mut discovered: DiscoveredProject, include_git: bool) -> DiscoveredProject {
+    let engine = project_fs::detect_engine(&discovered.path);
     if discovered.unity_version.is_none() {
-        discovered.unity_version = probe.unity_version;
+        discovered.unity_version = engine.unity_version.clone();
     }
-    if discovered.github_repo.is_none() {
-        discovered.github_repo = probe.github_repo.clone();
-    }
-    if discovered.github_url.is_none() {
-        discovered.github_url = probe.git_remote_url.or_else(|| {
-            discovered
-                .github_repo
-                .as_ref()
-                .map(|r| format!("https://github.com/{r}"))
-        });
-    }
-    discovered.platform = probe.platform;
+    discovered.platform = engine.platform.clone();
     // Hub/VCC may stamp a Unity version; clear it when filesystem says Unreal.
     if discovered.platform == Platform::Unreal {
         discovered.unity_version = None;
     }
-    discovered.tools = probe.tools;
-    discovered.has_run_script = probe.has_run_script;
+    discovered.tools = engine.tools;
+    discovered.has_run_script = engine.has_run_script;
+
+    if include_git && engine.exists {
+        let root = PathBuf::from(&discovered.path);
+        let remote = project_fs::git_remote_url(&root);
+        let repo = remote.as_ref().and_then(|u| project_fs::parse_github_repo(u));
+        if discovered.github_repo.is_none() {
+            discovered.github_repo = repo;
+        }
+        if discovered.github_url.is_none() {
+            discovered.github_url = remote.or_else(|| {
+                discovered
+                    .github_repo
+                    .as_ref()
+                    .map(|r| format!("https://github.com/{r}"))
+            });
+        }
+    }
     discovered
 }
 
@@ -268,17 +277,17 @@ pub fn existing_path_keys(projects: &[Project]) -> HashSet<String> {
 
 pub fn make_project_from_discovered(discovered: &DiscoveredProject, sort_index: i32) -> Project {
     let now = chrono::Utc::now().to_rfc3339();
-    let github_status = if PathBuf::from(&discovered.path).exists()
+    let sync = if PathBuf::from(&discovered.path).exists()
         && (discovered.github_repo.is_some() || discovered.github_url.is_some())
     {
-        project_fs::get_git_status(&discovered.path)
+        project_fs::get_git_sync_info(&discovered.path, false)
     } else if discovered.github_repo.is_some() || discovered.github_url.is_some() {
-        GithubStatus::RemoteOnly
+        crate::models::GitSyncInfo::remote_only()
     } else {
-        GithubStatus::None
+        crate::models::GitSyncInfo::default()
     };
 
-    Project {
+    let mut project = Project {
         id: uuid::Uuid::new_v4().to_string(),
         name: discovered.name.clone(),
         sort_index,
@@ -291,7 +300,11 @@ pub fn make_project_from_discovered(discovered: &DiscoveredProject, sort_index: 
         unity_version: discovered.unity_version.clone(),
         github_url: discovered.github_url.clone(),
         github_repo: discovered.github_repo.clone(),
-        github_status,
+        github_status: sync.status.clone(),
+        git_ahead: 0,
+        git_behind: 0,
+        git_branch: None,
+        git_dirty: false,
         favorite: discovered.favorite,
         archived: false,
         notes: String::new(),
@@ -301,7 +314,9 @@ pub fn make_project_from_discovered(discovered: &DiscoveredProject, sort_index: 
         client: None,
         year: None,
         updated_at: now,
-    }
+    };
+    project_fs::apply_git_sync_info(&mut project, &sync);
+    project
 }
 
 /// Re-apply probe onto an already-tracked path. Engine detection (Unity/Unreal)
@@ -467,11 +482,12 @@ pub fn try_link_existing(projects: &mut [Project], discovered: &DiscoveredProjec
         if discovered.favorite {
             project.favorite = true;
         }
-        project.github_status = if PathBuf::from(&discovered.path).exists() {
-            project_fs::get_git_status(&discovered.path)
+        if PathBuf::from(&discovered.path).exists() {
+            let sync = project_fs::get_git_sync_info(&discovered.path, false);
+            project_fs::apply_git_sync_info(project, &sync);
         } else {
-            GithubStatus::RemoteOnly
-        };
+            project_fs::clear_git_sync(project, GithubStatus::RemoteOnly);
+        }
         project.updated_at = chrono::Utc::now().to_rfc3339();
         return true;
     }

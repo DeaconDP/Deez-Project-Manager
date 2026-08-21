@@ -1,4 +1,4 @@
-import { useMetrics } from "../hooks/useMetrics";
+import { useSharedMetrics } from "./MetricsChrome";
 import { NetworkPanel } from "./NetworkPanel";
 import { ProcessesPanel } from "./ProcessesPanel";
 import { SpikesPanel } from "./SpikesPanel";
@@ -18,9 +18,9 @@ type Props = {
   onProcessViewChange: (view: ProcessView) => void;
 };
 
-/** Mounts metrics only while Processes hub is visible. */
+/** Consumes shared metrics from MetricsChromeProvider. */
 export function ProcessesHub({ processView, onProcessViewChange }: Props) {
-  const { snap, spikes, setSpikes } = useMetrics();
+  const { snap, spikes, setSpikes } = useSharedMetrics();
 
   return (
     <div className="process-hub">

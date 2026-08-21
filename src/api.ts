@@ -1,11 +1,14 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
+  GitSyncUpdated,
   GithubStatus,
   ImportResult,
   ProbeResult,
   Project,
   ProjectStore,
 } from "./types";
+
+export type { GitSyncUpdated };
 
 function assertTauriBridge(_cmd: string): void {
   const internals = (window as unknown as { __TAURI_INTERNALS__?: unknown })
@@ -27,6 +30,16 @@ async function tauriInvoke<T>(
 
 export async function getProjects(): Promise<ProjectStore> {
   return tauriInvoke<ProjectStore>("get_projects");
+}
+
+/** Background engine heal after first paint — does not block cold load. */
+export async function healProjectEngines(): Promise<Project[]> {
+  return tauriInvoke<Project[]>("heal_project_engines");
+}
+
+/** Cheap existence checks — no git / engine walk. */
+export async function checkPathsExist(paths: string[]): Promise<boolean[]> {
+  return tauriInvoke<boolean[]>("check_paths_exist", { paths });
 }
 
 export async function saveProjects(store: ProjectStore): Promise<void> {
@@ -97,6 +110,16 @@ export async function importLocalFolders(
 
 export async function refreshGithubStatuses(): Promise<Project[]> {
   return tauriInvoke<Project[]>("refresh_github_statuses");
+}
+
+export async function onGitSyncUpdated(
+  handler: (update: GitSyncUpdated) => void,
+): Promise<() => void> {
+  assertTauriBridge("git-sync-updated");
+  const { listen } = await import("@tauri-apps/api/event");
+  return listen<GitSyncUpdated>("git-sync-updated", (event) => {
+    handler(event.payload);
+  });
 }
 
 export async function addSyncRoot(path: string): Promise<string[]> {

@@ -5,7 +5,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-export PATH="$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$PATH"
+# Prefer ~/.local/bin (Hermes Node) over Homebrew — see launch-release.sh.
+export PATH="$HOME/.cargo/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 
 STATUS_FILE="${TMPDIR:-/tmp}/deez-project-manager-launch-status.json"
 LOG="${TMPDIR:-/tmp}/deez-project-manager-launch.log"

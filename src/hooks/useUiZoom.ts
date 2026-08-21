@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 
 export type UiLayout = "desktop" | "narrow" | "phone";
 
-export const UI_ZOOM_STEPS = [75, 85, 100, 110, 125, 150] as const;
+export const UI_ZOOM_STEPS = [
+  25, 35, 50, 65, 75, 85, 100, 110, 125, 150,
+] as const;
 export type UiZoomPercent = (typeof UI_ZOOM_STEPS)[number];
 
 const STORAGE_KEY = "deez-ui-zoom";

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getProjects, saveProjects } from "../api";
+import { getProjects, healProjectEngines, saveProjects } from "../api";
 import {
   addCommentToTask,
   moveTaskInBoard,
@@ -14,6 +14,7 @@ import {
   normalizePriority,
   normalizeStatus,
   type Category,
+  type GitSyncUpdated,
   type KanbanColumn,
   type Priority,
   type Project,
@@ -23,12 +24,57 @@ import {
   type TrelloImportResult,
 } from "../types";
 
+function normalizeProject(p: Project): Project {
+  return {
+    ...p,
+    archived: p.archived ?? false,
+    tools: p.tools ?? [],
+    hasRunScript: p.hasRunScript ?? false,
+    gitAhead: p.gitAhead ?? 0,
+    gitBehind: p.gitBehind ?? 0,
+    gitBranch: p.gitBranch ?? null,
+    gitDirty: p.gitDirty ?? false,
+    category: normalizeCategory(p.category),
+    priority: normalizePriority(p.priority),
+    status: normalizeStatus(p.status),
+  };
+}
+
 function sortProjects(projects: Project[]): Project[] {
   return [...projects].sort((a, b) => a.sortIndex - b.sortIndex);
 }
 
 function withReindexed(projects: Project[]): Project[] {
   return projects.map((p, i) => ({ ...p, sortIndex: i }));
+}
+
+function mergeHealedFields(current: Project[], healed: Project[]): Project[] {
+  const byId = new Map(healed.map((p) => [p.id, normalizeProject(p)]));
+  let changed = false;
+  const next = current.map((p) => {
+    const h = byId.get(p.id);
+    if (!h) return p;
+    const toolsSame =
+      (p.tools?.length ?? 0) === (h.tools?.length ?? 0) &&
+      (p.tools ?? []).every((t, i) => t === h.tools[i]);
+    if (
+      p.platform === h.platform &&
+      p.unityVersion === h.unityVersion &&
+      p.hasRunScript === h.hasRunScript &&
+      toolsSame
+    ) {
+      return p;
+    }
+    changed = true;
+    return {
+      ...p,
+      platform: h.platform,
+      unityVersion: h.unityVersion,
+      tools: h.tools,
+      hasRunScript: h.hasRunScript,
+    };
+  });
+  return changed ? next : current;
 }
 
 export function useProjects() {
@@ -42,6 +88,7 @@ export function useProjects() {
   const latestRef = useRef<Project[]>([]);
   const tasksRef = useRef<Task[]>([]);
   const syncRootsRef = useRef<string[]>([]);
+  const healStartedRef = useRef(false);
 
   const persist = useCallback((next: Project[], nextTasks?: Task[], roots?: string[]) => {
     latestRef.current = next;
@@ -83,22 +130,20 @@ export function useProjects() {
     [persist],
   );
 
+  const applyHealedProjects = useCallback((healed: Project[]) => {
+    const next = mergeHealedFields(latestRef.current, healed);
+    if (next === latestRef.current) return;
+    latestRef.current = next;
+    setProjects(next);
+  }, []);
+
   const reload = useCallback(async () => {
     setLoading(true);
     setError(null);
+    healStartedRef.current = false;
     try {
       const store = await getProjects();
-      const sorted = sortProjects(
-        (store.projects ?? []).map((p) => ({
-          ...p,
-          archived: p.archived ?? false,
-          tools: p.tools ?? [],
-          hasRunScript: p.hasRunScript ?? false,
-          category: normalizeCategory(p.category),
-          priority: normalizePriority(p.priority),
-          status: normalizeStatus(p.status),
-        })),
-      );
+      const sorted = sortProjects((store.projects ?? []).map(normalizeProject));
       const loadedTasks = (store.tasks ?? []).map(normalizeTask);
       const roots = store.syncRoots ?? [];
       latestRef.current = sorted;
@@ -123,18 +168,49 @@ export function useProjects() {
     };
   }, [reload]);
 
+  // After first paint, heal engine labels in the background (store already saved in Rust).
+  useEffect(() => {
+    if (loading || healStartedRef.current) return;
+    healStartedRef.current = true;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const healed = await healProjectEngines();
+        if (!cancelled) applyHealedProjects(healed);
+      } catch {
+        // Non-fatal — labels heal on next Sync / Refresh cycle.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, applyHealedProjects]);
+
   const replaceAll = useCallback(
     (next: Project[]) => {
-      const normalized = next.map((p) => ({
-        ...p,
-        category: normalizeCategory(p.category),
-        priority: normalizePriority(p.priority),
-        status: normalizeStatus(p.status),
-      }));
+      const normalized = next.map(normalizeProject);
       persist(withReindexed(sortProjects(normalized)));
     },
     [persist],
   );
+
+  /** Merge a background git-fetch result without re-persisting (Rust already saved). */
+  const applyGitSyncUpdate = useCallback((update: GitSyncUpdated) => {
+    const next = latestRef.current.map((p) =>
+      p.id === update.id
+        ? {
+            ...p,
+            githubStatus: update.githubStatus,
+            gitAhead: update.gitAhead,
+            gitBehind: update.gitBehind,
+            gitBranch: update.gitBranch,
+            gitDirty: update.gitDirty,
+          }
+        : p,
+    );
+    latestRef.current = next;
+    setProjects(next);
+  }, []);
 
   const setSyncRoots = useCallback((roots: string[]) => {
     syncRootsRef.current = roots;
@@ -174,15 +250,37 @@ export function useProjects() {
     [persist],
   );
 
+  const removeByIds = useCallback(
+    (ids: string[]) => {
+      if (ids.length === 0) return;
+      const idSet = new Set(ids);
+      const nextProjects = withReindexed(
+        latestRef.current.filter((p) => !idSet.has(p.id)),
+      );
+      const nextTasks = tasksRef.current.filter((t) => !idSet.has(t.projectId));
+      persist(nextProjects, nextTasks);
+    },
+    [persist],
+  );
+
   const reorder = useCallback(
-    (activeId: string, overId: string) => {
-      const list = [...latestRef.current];
-      const from = list.findIndex((p) => p.id === activeId);
-      const to = list.findIndex((p) => p.id === overId);
+    (visibleIds: string[], activeId: string, overId: string) => {
+      const ids = [...visibleIds];
+      const from = ids.indexOf(activeId);
+      const to = ids.indexOf(overId);
       if (from < 0 || to < 0 || from === to) return;
-      const [item] = list.splice(from, 1);
-      list.splice(to, 0, item);
-      persist(withReindexed(list));
+      const [moved] = ids.splice(from, 1);
+      ids.splice(to, 0, moved);
+
+      const byId = new Map(latestRef.current.map((p) => [p.id, p]));
+      const visibleSet = new Set(ids);
+      let nextVisible = 0;
+      const next = latestRef.current.map((p) => {
+        if (!visibleSet.has(p.id)) return p;
+        const id = ids[nextVisible++];
+        return byId.get(id) ?? p;
+      });
+      persist(withReindexed(next));
     },
     [persist],
   );
@@ -325,9 +423,11 @@ export function useProjects() {
     setError,
     reload,
     replaceAll,
+    applyGitSyncUpdate,
     setSyncRoots,
     upsert,
     setArchived,
+    removeByIds,
     reorder,
     toggleFavorite,
     setPriority,

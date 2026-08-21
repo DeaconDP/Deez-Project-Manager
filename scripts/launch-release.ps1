@@ -139,6 +139,9 @@ function Start-ReleaseExe {
     return $true
   }
 
+  # Prevent launch_gate handoff loop after rebuild / launcher start.
+  $env:DEEZ_PM_FROM_LAUNCHER = "1"
+
   Write-Host "Launching Deez Project Manager..."
   Write-LaunchLog "start process: $exe"
   Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe)

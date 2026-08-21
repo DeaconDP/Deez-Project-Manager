@@ -9,7 +9,7 @@ Portfolio project dashboard (Tauri) replacing day-to-day Unity Hub / VCC list us
 - Add local folder(s) (multi-select; probe Unity version + git remote; path dedupe + link GitHub-only rows)
 - Open Unity project / reveal in Explorer
 - Run `run.bat` / `run.command` when present (primary); Open in ··· menu
-- Import public repos from `DeaconDP` + refresh local git status
+- Import public repos from `DeaconDP` + refresh local git status (ahead/behind counts; staggered background fetch)
 - Import Unity Hub + VCC project lists (dedupe by path; link onto GitHub-only rows)
 - Slim brand chrome + command bar UX (Import menu, search shortcut)
 - Sync parent folders: persistent roots list; scan immediate children and add missing projects
@@ -48,6 +48,7 @@ Portfolio project dashboard (Tauri) replacing day-to-day Unity Hub / VCC list us
 - Cross-PC metadata + sort sync via private GitHub gist or repo
 - Optional GitHub PAT in OS secret store (never commit tokens)
 - Rate-limit handling with authenticated API
+- Open PR count enrichment on project rows (GitHub API; PAT for private) — never GitHub Actions / workflow checks
 
 ### Project kanban
 - Per-project board opened from project name click (Backlog → Priority → Doing → Testing → Done)
@@ -82,6 +83,7 @@ Portfolio project dashboard (Tauri) replacing day-to-day Unity Hub / VCC list us
 - 2026-07-15: Full Hub/VCC package + create-project — out of v1 scope; list import is shipped (`src-tauri/src/hub_vcc.rs`).
 - 2026-07-15: Cashflow months/Gross/Nett UI — spreadsheet fields kept optional on Project; ledger epic later.
 - 2026-07-15: GitHub PAT / private repo import — public DeaconDP import only in v1 (`src-tauri/src/github.rs`).
+- 2026-08-21: Open PR counts on rows — deferred until Sync PAT work; never wire GitHub Actions (`src-tauri/src/github.rs`).
 - 2026-07-15: Learn / Tools sidebar stubs — superseded by Projects/Overview/Processes/Fuel/Settings tabs (`src/App.tsx`).
 - 2026-07-15: Multi-root filesystem watch / auto-discover — manual Sync parents shipped instead (`src/components/SyncMenu.tsx`).
 - 2026-07-16: Shared Ada-Monitor / Deez-USB-Hub Rust crate — vendored copy into PM instead (`src-tauri/src/metrics/`, `src-tauri/src/usb/`, `src-tauri/src/usage/`).

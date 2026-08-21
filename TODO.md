@@ -39,6 +39,7 @@
 - [x] Click column headers to sort; Custom handle restores drag order
 - [x] Persist table sort (column + dir) in localStorage across restarts
 - [x] Header sort perf: skip DnD off Custom; enter-fade once; dir toggle reverses
+- [x] Drag while column-sorted auto-switches to Custom and saves order
 - [x] Sort by stars (grey ★ header); equal-height header cells (no border kink)
 - [x] Omit Location from table; Category = VR / AR / Other (+ Utility / Web / Game / Client)
 - [x] Platform icons in table; Vite HMR polling for Tauri webview refresh
@@ -49,14 +50,24 @@
 - [x] Launch at PC start toggle (Windows autostart via Tauri plugin)
 - [x] Release desktop shortcut + guard Start with PC in DEV (no debug EXE registration)
 - [x] Smart release launcher: auto-rebuild when source newer than EXE, then launch; `--rebuild` forces
+- [x] Dock / EXE rebuild-on-update: pin-friendly launcher shortcuts + release-binary handoff when update ready
 - [x] Sync parent folders (persistent roots; immediate children → add missing)
 - [x] Sync menu: Sync all roots in one pass (+ per-folder still available)
 - [x] Click chrome title to rename (ALL CAPS); persist in localStorage
 - [x] Deez logo/icon pack in chrome + favicon + Tauri window icons
 - [x] Detect Unreal (`.uproject`) + AI tools (Cursor/Claude/Codex/OpenCode) on Add/Sync; tool icons in Platform cell
 - [x] Re-probe existing on Sync/import (engine probe overwrites wrong platform e.g. Unity→Unreal; merge tools)
-- [x] Bulk engine re-probe on load + Refresh (heals stuck Unity labels; nested `.uproject` depth-2)
+- [x] Bulk engine re-probe after paint via `heal_project_engines` (heals stuck Unity labels; nested `.uproject` depth-2)
 - [x] Smart primary: Run when `run.bat`/`run.command` exists; Open in ··· (Unity editor / Explorer fallback)
+- [x] Toolbar Refresh: prune missing local folders from dashboard + list removed paths
+- [x] Git sync fields (`gitAhead`/`gitBehind`/`gitBranch`/`gitDirty`); sync status beats dirty
+- [x] Explicit ahead/behind/diverged row outlines + count labels in GitHub column
+- [x] Staggered background `git fetch` by priority after Refresh; `git-sync-updated` UI merge
+- [x] Responsiveness: fast `get_projects` + background `heal_project_engines`
+- [x] Responsiveness: bulk `check_paths_exist` prune (no sequential probe)
+- [x] Responsiveness: parallel git refresh; engine-only Sync enrich (git remote only for new/link)
+- [x] Responsiveness: DnD only on Custom sort; memo rows; stable `useAsyncAction.run`
+- [x] Responsiveness: shared Metrics/Fuel context; idle sampler on Projects; lazy monitor/kanban
 
 ## Project kanban
 

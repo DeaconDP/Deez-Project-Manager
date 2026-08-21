@@ -18,11 +18,13 @@ export function ActionFeedback({ feedback, onDismiss }: Props) {
         {feedback.kind === "loading" && <Spinner size="sm" />}
         {feedback.message}
       </span>
-      {feedback.kind === "error" && onDismiss && (
-        <button type="button" className="btn-ghost" onClick={onDismiss}>
-          Dismiss
-        </button>
-      )}
+      {(feedback.kind === "error" ||
+        (feedback.kind === "success" && feedback.persist)) &&
+        onDismiss && (
+          <button type="button" className="btn-ghost" onClick={onDismiss}>
+            Dismiss
+          </button>
+        )}
     </div>
   );
 }

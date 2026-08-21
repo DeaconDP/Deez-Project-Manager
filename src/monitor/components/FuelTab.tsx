@@ -1,9 +1,9 @@
-import { useFuelUsage } from "../hooks/useFuelUsage";
+import { useSharedFuel } from "./MetricsChrome";
 import { FuelPanel } from "./FuelPanel";
 
-/** Mounts fuel subscription only while Fuel tab is visible. */
+/** Consumes shared fuel from MetricsChromeProvider. */
 export function FuelTab() {
-  const fuel = useFuelUsage();
+  const fuel = useSharedFuel();
   return (
     <FuelPanel
       settings={fuel.settings}

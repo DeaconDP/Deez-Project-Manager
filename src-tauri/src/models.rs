@@ -89,6 +89,14 @@ pub struct Project {
     pub github_url: Option<String>,
     pub github_repo: Option<String>,
     pub github_status: GithubStatus,
+    #[serde(default)]
+    pub git_ahead: i32,
+    #[serde(default)]
+    pub git_behind: i32,
+    #[serde(default)]
+    pub git_branch: Option<String>,
+    #[serde(default)]
+    pub git_dirty: bool,
     pub favorite: bool,
     #[serde(default)]
     pub archived: bool,
@@ -104,6 +112,57 @@ pub struct Project {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub year: Option<i32>,
     pub updated_at: String,
+}
+
+/// Local git probe result (ahead/behind vs upstream; sync status beats dirty).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitSyncInfo {
+    pub status: GithubStatus,
+    pub ahead: i32,
+    pub behind: i32,
+    pub branch: Option<String>,
+    pub dirty: bool,
+}
+
+impl Default for GitSyncInfo {
+    fn default() -> Self {
+        Self {
+            status: GithubStatus::None,
+            ahead: 0,
+            behind: 0,
+            branch: None,
+            dirty: false,
+        }
+    }
+}
+
+impl GitSyncInfo {
+    pub fn remote_only() -> Self {
+        Self {
+            status: GithubStatus::RemoteOnly,
+            ..Self::default()
+        }
+    }
+
+    pub fn error() -> Self {
+        Self {
+            status: GithubStatus::Error,
+            ..Self::default()
+        }
+    }
+}
+
+/// Payload for progressive background fetch updates.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitSyncUpdated {
+    pub id: String,
+    pub github_status: GithubStatus,
+    pub git_ahead: i32,
+    pub git_behind: i32,
+    pub git_branch: Option<String>,
+    pub git_dirty: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

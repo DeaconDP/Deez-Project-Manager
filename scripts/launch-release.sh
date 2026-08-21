@@ -6,7 +6,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-export PATH="$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$PATH"
+# Prefer ~/.local/bin (Hermes Node) over Homebrew — brew Node can break when
+# simdjson ABI drifts (missing libsimdjson.N.dylib) and abort npm install.
+export PATH="$HOME/.cargo/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 
 APP="$ROOT/src-tauri/target/release/bundle/macos/Deez Project Manager.app"
 BIN="$ROOT/src-tauri/target/release/deez-project-manager"
@@ -235,6 +237,14 @@ build_release() {
 
   notify "Build complete." 90
   log "tauri build succeeded"
+
+  # Refresh Dock-friendly ~/Applications launcher when already installed.
+  DOCK_LAUNCHER="$HOME/Applications/Deez Project Manager.app"
+  if [ -d "$DOCK_LAUNCHER" ] && [ -x "$ROOT/scripts/install-dock-launcher.sh" ]; then
+    bash "$ROOT/scripts/install-dock-launcher.sh" >/dev/null 2>&1 || true
+    log "dock launcher app refreshed"
+  fi
+
   return 0
 }
 
@@ -247,10 +257,20 @@ start_release() {
     return 0
   fi
 
+  # Prevent launch_gate handoff loop after rebuild / launcher start.
+  export DEEZ_PM_FROM_LAUNCHER=1
+
   notify "Launching Deez Project Manager…" 95
-  if [ -d "$APP" ]; then
+  if [ -x "$APP_BIN" ]; then
+    log "start app binary: $APP_BIN"
+    "$APP_BIN" >/dev/null 2>&1 &
+  elif [ -d "$APP" ]; then
     log "open app: $APP"
-    open "$APP"
+    if open --env DEEZ_PM_FROM_LAUNCHER=1 "$APP" >/dev/null 2>&1; then
+      :
+    else
+      open "$APP"
+    fi
   elif [ -x "$BIN" ]; then
     log "start binary: $BIN"
     "$BIN" >/dev/null 2>&1 &

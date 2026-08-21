@@ -1,6 +1,7 @@
-use crate::models::{GithubStatus, Platform, ProbeResult};
+use crate::models::{GitSyncInfo, GithubStatus, Platform, ProbeResult, Project};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
 
 /// Filesystem-only engine/tools detection (no git). Safe for bulk refresh.
 #[derive(Debug, Clone)]
@@ -231,13 +232,58 @@ pub fn parse_github_repo(url: &str) -> Option<String> {
     None
 }
 
-pub fn get_git_status(path: &str) -> GithubStatus {
+const GIT_FETCH_TIMEOUT_SECS: u64 = 25;
+const GIT_FETCH_STAGGER_MS: u64 = 180;
+
+/// Quiet `git fetch` with a hard timeout. Failures are non-fatal (caller still
+/// probes local status vs last-known upstream).
+pub fn git_fetch_quiet(path: &str) -> bool {
+    let mut child = match Command::new("git")
+        .args(["-C", path, "fetch", "--quiet", "--no-tags"])
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+    {
+        Ok(c) => c,
+        Err(_) => return false,
+    };
+
+    let started = Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => return status.success(),
+            Ok(None) => {
+                if started.elapsed() >= Duration::from_secs(GIT_FETCH_TIMEOUT_SECS) {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return false;
+                }
+                std::thread::sleep(Duration::from_millis(40));
+            }
+            Err(_) => return false,
+        }
+    }
+}
+
+fn resolve_sync_status(ahead: i32, behind: i32, dirty: bool) -> GithubStatus {
+    // Sync state beats dirty so ahead/behind stay explicit.
+    match (ahead > 0, behind > 0) {
+        (true, true) => GithubStatus::Diverged,
+        (false, true) => GithubStatus::Behind,
+        (true, false) => GithubStatus::Ahead,
+        (false, false) if dirty => GithubStatus::Dirty,
+        (false, false) => GithubStatus::Clean,
+    }
+}
+
+pub fn get_git_sync_info(path: &str, fetch: bool) -> GitSyncInfo {
     let root = PathBuf::from(path);
     if !root.exists() {
-        return GithubStatus::RemoteOnly;
+        return GitSyncInfo::remote_only();
     }
     if !root.join(".git").exists() {
-        // could be worktree; try git rev-parse
         let ok = Command::new("git")
             .args(["-C", path, "rev-parse", "--is-inside-work-tree"])
             .output()
@@ -245,8 +291,12 @@ pub fn get_git_status(path: &str) -> GithubStatus {
             .map(|o| o.status.success())
             .unwrap_or(false);
         if !ok {
-            return GithubStatus::RemoteOnly;
+            return GitSyncInfo::remote_only();
         }
+    }
+
+    if fetch {
+        let _ = git_fetch_quiet(path);
     }
 
     let porcelain = Command::new("git")
@@ -254,14 +304,13 @@ pub fn get_git_status(path: &str) -> GithubStatus {
         .output();
 
     let Ok(porcelain) = porcelain else {
-        return GithubStatus::Error;
+        return GitSyncInfo::error();
     };
     if !porcelain.status.success() {
-        return GithubStatus::Error;
+        return GitSyncInfo::error();
     }
     let dirty = !String::from_utf8_lossy(&porcelain.stdout).trim().is_empty();
 
-    // fetch left/right vs upstream
     let ahead_behind = Command::new("git")
         .args([
             "-C",
@@ -289,15 +338,45 @@ pub fn get_git_status(path: &str) -> GithubStatus {
         _ => (0, 0),
     };
 
-    if dirty {
-        return GithubStatus::Dirty;
+    let branch = Command::new("git")
+        .args(["-C", path, "rev-parse", "--abbrev-ref", "HEAD"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .filter(|s| !s.is_empty() && s != "HEAD");
+
+    GitSyncInfo {
+        status: resolve_sync_status(ahead, behind, dirty),
+        ahead,
+        behind,
+        branch,
+        dirty,
     }
-    match (ahead > 0, behind > 0) {
-        (true, true) => GithubStatus::Diverged,
-        (true, false) => GithubStatus::Ahead,
-        (false, true) => GithubStatus::Behind,
-        (false, false) => GithubStatus::Clean,
-    }
+}
+
+pub fn get_git_status(path: &str) -> GithubStatus {
+    get_git_sync_info(path, false).status
+}
+
+pub fn apply_git_sync_info(project: &mut Project, info: &GitSyncInfo) {
+    project.github_status = info.status.clone();
+    project.git_ahead = info.ahead;
+    project.git_behind = info.behind;
+    project.git_branch = info.branch.clone();
+    project.git_dirty = info.dirty;
+}
+
+pub fn clear_git_sync(project: &mut Project, status: GithubStatus) {
+    project.github_status = status;
+    project.git_ahead = 0;
+    project.git_behind = 0;
+    project.git_branch = None;
+    project.git_dirty = false;
+}
+
+pub fn git_fetch_stagger_ms() -> u64 {
+    GIT_FETCH_STAGGER_MS
 }
 
 pub fn find_unity_editor(version: Option<&str>) -> Option<PathBuf> {

@@ -1,5 +1,6 @@
 mod github;
 mod hub_vcc;
+mod launch_gate;
 mod metrics;
 mod models;
 mod net;
@@ -14,12 +15,14 @@ mod usb;
 mod win_cmd;
 
 use models::{
-    GithubRepo, GithubStatus, ImportResult, Platform, Priority, ProbeResult, Project, ProjectStore,
+    GitSyncInfo, GitSyncUpdated, GithubRepo, GithubStatus, ImportResult, Platform, Priority,
+    ProbeResult, Project, ProjectStore,
 };
 use scheduler::{run_latency_suite, start_scheduler, SamplerState};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::path::Path;
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 use tauri_plugin_dialog::{DialogExt, FilePath};
 use types::{LatencyResult, MetricsSnapshot, SpikeEvent};
 use usage::{
@@ -39,8 +42,9 @@ struct MonitorState {
 #[tauri::command]
 fn get_projects(app: AppHandle) -> Result<ProjectStore, String> {
     let mut store = store::load_store(&app)?;
-    // Heal stuck engine labels (e.g. Unreal rows force-labeled Unity) on load.
-    let mut dirty = hub_vcc::reprobe_all_engines(&mut store.projects);
+    // Cheap in-memory cleanup only — engine re-probe runs via heal_project_engines
+    // after first paint so cold start is not blocked on disk walks.
+    let mut dirty = false;
     for project in &mut store.projects {
         let empty_path = project
             .local_path
@@ -56,6 +60,28 @@ fn get_projects(app: AppHandle) -> Result<ProjectStore, String> {
         store::save_store(&app, &store)?;
     }
     Ok(store)
+}
+
+/// Filesystem engine heal (Unity/Unreal/tools). Call after first paint.
+#[tauri::command]
+fn heal_project_engines(app: AppHandle) -> Result<Vec<Project>, String> {
+    let mut store = store::load_store(&app)?;
+    if hub_vcc::reprobe_all_engines(&mut store.projects) {
+        store::save_store(&app, &store)?;
+    }
+    Ok(store.projects)
+}
+
+/// Cheap path existence checks (no git / engine walk).
+#[tauri::command]
+fn check_paths_exist(paths: Vec<String>) -> Vec<bool> {
+    paths
+        .into_iter()
+        .map(|p| {
+            let path = Path::new(&p);
+            !p.trim().is_empty() && path.exists()
+        })
+        .collect()
 }
 
 #[tauri::command]
@@ -197,6 +223,10 @@ fn import_github_repos(app: AppHandle, username: Option<String>) -> Result<Impor
             github_url: Some(repo.html_url.clone()),
             github_repo: Some(repo.full_name.clone()),
             github_status: GithubStatus::RemoteOnly,
+            git_ahead: 0,
+            git_behind: 0,
+            git_branch: None,
+            git_dirty: false,
             favorite: false,
             archived: false,
             notes: repo.description.unwrap_or_default(),
@@ -238,13 +268,15 @@ fn import_discovered_list(
     let mut updated = 0u32;
 
     for raw in discovered {
-        let mut discovered = hub_vcc::enrich_discovered(raw);
+        let key = hub_vcc::normalize_path_key(&raw.path);
+        // Engine-only for already-tracked paths; git remote only for new/link candidates.
+        let need_git = !existing_paths.contains(&key);
+        let mut discovered = hub_vcc::enrich_discovered(raw, need_git);
         // Unity Hub / VCC lists are assumed Unity, but a definitive `.uproject`
         // (Unreal) from the filesystem probe must win.
         if force_unity && discovered.platform != Platform::Unreal {
             discovered.platform = Platform::Unity;
         }
-        let key = hub_vcc::normalize_path_key(&discovered.path);
         if existing_paths.contains(&key) {
             if hub_vcc::try_refresh_existing_by_path(&mut store.projects, &discovered) {
                 updated += 1;
@@ -430,26 +462,152 @@ fn import_local_folders(app: AppHandle, paths: Vec<String>) -> Result<ImportResu
     import_discovered_list(&app, discovered, false)
 }
 
+fn parallel_git_sync(
+    jobs: &[(usize, String)],
+    concurrency: usize,
+) -> Vec<(usize, GitSyncInfo)> {
+    if jobs.is_empty() {
+        return Vec::new();
+    }
+    let next = AtomicUsize::new(0);
+    let results = Mutex::new(Vec::with_capacity(jobs.len()));
+    let workers = concurrency.min(jobs.len()).max(1);
+    std::thread::scope(|scope| {
+        for _ in 0..workers {
+            scope.spawn(|| {
+                loop {
+                    let i = next.fetch_add(1, Ordering::Relaxed);
+                    if i >= jobs.len() {
+                        break;
+                    }
+                    let (idx, path) = &jobs[i];
+                    let sync = project_fs::get_git_sync_info(path, false);
+                    if let Ok(mut guard) = results.lock() {
+                        guard.push((*idx, sync));
+                    }
+                }
+            });
+        }
+    });
+    results.into_inner().unwrap_or_default()
+}
+
+fn priority_fetch_rank(priority: &Priority) -> u8 {
+    match priority {
+        Priority::Crit => 0,
+        Priority::High => 1,
+        Priority::Med => 2,
+        Priority::Low => 3,
+        Priority::Default => 4,
+    }
+}
+
+/// Bumped on each Refresh so an in-flight background fetch queue aborts.
+static GIT_FETCH_GEN: AtomicU64 = AtomicU64::new(0);
+
 #[tauri::command]
 fn refresh_github_statuses(app: AppHandle) -> Result<Vec<Project>, String> {
     let mut store = store::load_store(&app)?;
-    hub_vcc::reprobe_all_engines(&mut store.projects);
-    for project in &mut store.projects {
+    // Engine heal is separate (heal_project_engines); this path is git-only.
+    let mut jobs: Vec<(usize, String)> = Vec::new();
+    for (i, project) in store.projects.iter_mut().enumerate() {
         if project.github_url.is_none() && project.github_repo.is_none() {
-            project.github_status = GithubStatus::None;
+            project_fs::clear_git_sync(project, GithubStatus::None);
             continue;
         }
         match &project.local_path {
             Some(path) if !path.is_empty() => {
-                project.github_status = project_fs::get_git_status(path);
+                jobs.push((i, path.clone()));
             }
             _ => {
-                project.github_status = GithubStatus::RemoteOnly;
+                project_fs::clear_git_sync(project, GithubStatus::RemoteOnly);
             }
         }
     }
+    for (i, sync) in parallel_git_sync(&jobs, 8) {
+        if let Some(project) = store.projects.get_mut(i) {
+            project_fs::apply_git_sync_info(project, &sync);
+        }
+    }
     store::save_store(&app, &store)?;
+
+    let gen = GIT_FETCH_GEN.fetch_add(1, Ordering::SeqCst) + 1;
+    let handle = app.clone();
+    std::thread::spawn(move || {
+        run_background_git_fetch(handle, gen);
+    });
+
     Ok(store.projects)
+}
+
+fn run_background_git_fetch(app: AppHandle, gen: u64) {
+    let Ok(store) = store::load_store(&app) else {
+        return;
+    };
+
+    let mut queue: Vec<(String, String, u8, bool)> = store
+        .projects
+        .iter()
+        .filter(|p| !p.archived)
+        .filter(|p| p.github_url.is_some() || p.github_repo.is_some())
+        .filter_map(|p| {
+            let path = p.local_path.as_ref()?.trim();
+            if path.is_empty() {
+                return None;
+            }
+            Some((
+                p.id.clone(),
+                path.to_string(),
+                priority_fetch_rank(&p.priority),
+                p.favorite,
+            ))
+        })
+        .collect();
+
+    // Crit → Default; favorites first within the same priority band.
+    queue.sort_by(|a, b| a.2.cmp(&b.2).then_with(|| b.3.cmp(&a.3)));
+
+    let stagger = std::time::Duration::from_millis(project_fs::git_fetch_stagger_ms());
+
+    for (i, (id, path, _, _)) in queue.into_iter().enumerate() {
+        if GIT_FETCH_GEN.load(Ordering::SeqCst) != gen {
+            return;
+        }
+        if i > 0 {
+            std::thread::sleep(stagger);
+            if GIT_FETCH_GEN.load(Ordering::SeqCst) != gen {
+                return;
+            }
+        }
+
+        let sync = project_fs::get_git_sync_info(&path, true);
+        if GIT_FETCH_GEN.load(Ordering::SeqCst) != gen {
+            return;
+        }
+
+        let Ok(mut store) = store::load_store(&app) else {
+            continue;
+        };
+        let Some(project) = store.projects.iter_mut().find(|p| p.id == id) else {
+            continue;
+        };
+        project_fs::apply_git_sync_info(project, &sync);
+        project.updated_at = chrono::Utc::now().to_rfc3339();
+
+        let payload = GitSyncUpdated {
+            id: id.clone(),
+            github_status: project.github_status.clone(),
+            git_ahead: project.git_ahead,
+            git_behind: project.git_behind,
+            git_branch: project.git_branch.clone(),
+            git_dirty: project.git_dirty,
+        };
+
+        if store::save_store(&app, &store).is_err() {
+            continue;
+        }
+        let _ = app.emit("git-sync-updated", &payload);
+    }
 }
 
 fn guess_platform(language: Option<&str>, name: &str) -> Platform {
@@ -524,6 +682,8 @@ fn get_device_detail(state: tauri::State<'_, MonitorState>, id: String) -> Resul
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    launch_gate::maybe_handoff_to_launcher();
+
     let sampler = match SamplerState::new() {
         Ok(s) => Arc::new(s),
         Err(e) => {
@@ -562,6 +722,8 @@ pub fn run() {
         .manage(fuel_state)
         .invoke_handler(tauri::generate_handler![
             get_projects,
+            heal_project_engines,
+            check_paths_exist,
             save_projects,
             pick_project_folder,
             pick_project_folders,

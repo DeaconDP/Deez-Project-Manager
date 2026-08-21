@@ -9,6 +9,11 @@ import { useFuelUsage } from "../hooks/useFuelUsage";
 import { useMetrics } from "../hooks/useMetrics";
 import { buildFuelGlanceItems } from "../lib/fuelCaps";
 import type { MetricsSnapshot, SpikeEvent } from "../types/metrics";
+import type {
+  FuelSettings,
+  RefreshResult,
+  UsageSnapshot,
+} from "../types/usage";
 import { MetricsGlance } from "./MetricsGlance";
 
 type MetricsValue = {
@@ -19,19 +24,42 @@ type MetricsValue = {
   error: string | null;
 };
 
+type FuelValue = {
+  settings: FuelSettings;
+  setSettings: (next: FuelSettings) => Promise<void>;
+  result: RefreshResult | null;
+  snapshot: UsageSnapshot | null;
+  ready: boolean;
+  error: string | null;
+  refreshing: boolean;
+  refresh: () => Promise<void>;
+};
+
 const MetricsCtx = createContext<MetricsValue | null>(null);
+const FuelCtx = createContext<FuelValue | null>(null);
 const FuelGlanceCtx = createContext<ReturnType<typeof buildFuelGlanceItems>>([]);
 
-/** Owns metrics + fuel subscriptions for chrome (and optional consumers under it). */
-export function MetricsChromeProvider({ children }: { children: ReactNode }) {
-  const value = useMetrics();
+type ProviderProps = {
+  children: ReactNode;
+  /** When true (e.g. Projects tab), sampler uses idle pace while window is visible. */
+  preferSlow?: boolean;
+};
+
+/** Owns the single metrics + fuel subscription for chrome and monitor tabs. */
+export function MetricsChromeProvider({
+  children,
+  preferSlow = false,
+}: ProviderProps) {
+  const value = useMetrics({ preferSlow });
   const fuel = useFuelUsage();
   const fuelGlanceItems = buildFuelGlanceItems(fuel.settings, fuel.snapshot);
   return (
     <MetricsCtx.Provider value={value}>
-      <FuelGlanceCtx.Provider value={fuelGlanceItems}>
-        {children}
-      </FuelGlanceCtx.Provider>
+      <FuelCtx.Provider value={fuel}>
+        <FuelGlanceCtx.Provider value={fuelGlanceItems}>
+          {children}
+        </FuelGlanceCtx.Provider>
+      </FuelCtx.Provider>
     </MetricsCtx.Provider>
   );
 }
@@ -40,12 +68,24 @@ function useFuelGlanceItems() {
   return useContext(FuelGlanceCtx);
 }
 
-function useChromeMetrics(): MetricsValue {
+export function useSharedMetrics(): MetricsValue {
   const ctx = useContext(MetricsCtx);
   if (!ctx) {
-    throw new Error("Metrics chrome slots require MetricsChromeProvider");
+    throw new Error("useSharedMetrics requires MetricsChromeProvider");
   }
   return ctx;
+}
+
+export function useSharedFuel(): FuelValue {
+  const ctx = useContext(FuelCtx);
+  if (!ctx) {
+    throw new Error("useSharedFuel requires MetricsChromeProvider");
+  }
+  return ctx;
+}
+
+function useChromeMetrics(): MetricsValue {
+  return useSharedMetrics();
 }
 
 export function MetricsGlanceSlot() {

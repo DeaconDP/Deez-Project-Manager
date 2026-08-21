@@ -26,16 +26,20 @@ import {
   useMemo,
   useRef,
   useState,
+  memo,
   type CSSProperties,
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
 import {
+  GITHUB_STATUS_SORT_RANK,
   githubStatusLabel,
+  githubStatusTooltip,
   normalizeCategory,
   normalizeStatus,
   statusClassSlug,
   type Category,
+  type GithubStatus,
   type Priority,
   type Project,
   type Status,
@@ -156,14 +160,27 @@ function compareProjects(
     case "category":
       cmp = a.category.localeCompare(b.category);
       break;
-    case "github":
-      cmp = githubStatusLabel(a.githubStatus).localeCompare(
-        githubStatusLabel(b.githubStatus),
-      );
+    case "github": {
+      cmp =
+        GITHUB_STATUS_SORT_RANK[a.githubStatus] -
+        GITHUB_STATUS_SORT_RANK[b.githubStatus];
+      if (cmp === 0) cmp = (b.gitBehind ?? 0) - (a.gitBehind ?? 0);
+      if (cmp === 0) cmp = (b.gitAhead ?? 0) - (a.gitAhead ?? 0);
       break;
+    }
   }
   if (cmp === 0) cmp = a.sortIndex - b.sortIndex;
   return dir === "asc" ? cmp : -cmp;
+}
+
+const GIT_OUTLINE_STATUSES = new Set<GithubStatus>([
+  "ahead",
+  "behind",
+  "diverged",
+]);
+
+function gitRowClass(status: GithubStatus): string {
+  return GIT_OUTLINE_STATUSES.has(status) ? ` git-row-${status}` : "";
 }
 
 function TrashIcon() {
@@ -686,7 +703,8 @@ function ProjectDataCells({
   onOpenBoard?: (project: Project) => void;
   iconOnly?: boolean;
 }) {
-  const ghLabel = githubStatusLabel(project.githubStatus);
+  const ghLabel = githubStatusLabel(project.githubStatus, project);
+  const ghTip = githubStatusTooltip(project);
 
   return (
     <>
@@ -745,15 +763,15 @@ function ProjectDataCells({
         ) : iconOnly ? (
           <span
             className={`gh-status gh-icon-only gh-${project.githubStatus}`}
-            title={ghLabel}
-            aria-label={ghLabel}
+            title={ghTip}
+            aria-label={ghTip}
           >
             <GithubStatusIcon status={project.githubStatus} />
           </span>
         ) : (
           <span
             className={`gh-status gh-${project.githubStatus}`}
-            title={ghLabel}
+            title={ghTip}
           >
             <span className="gh-dot" aria-hidden="true" />
             <span className="gh-label">{ghLabel}</span>
@@ -768,7 +786,6 @@ function ProjectDataCells({
 function InteractiveRowCells({
   project,
   isDragging,
-  allowDrag,
   dragHandleProps,
   onToggleFavorite,
   onPriorityChange,
@@ -780,7 +797,6 @@ function InteractiveRowCells({
 }: {
   project: Project;
   isDragging: boolean;
-  allowDrag: boolean;
   dragHandleProps: Record<string, unknown>;
   onToggleFavorite: (id: string) => void;
   onPriorityChange: (id: string, priority: Priority) => void;
@@ -798,15 +814,15 @@ function InteractiveRowCells({
       drag={
         <button
           type="button"
-          className={`drag-handle${isDragging ? " is-active" : ""}${!allowDrag ? " is-disabled" : ""}`}
+          className={`drag-handle${isDragging ? " is-active" : ""}`}
           aria-label={`Reorder ${project.name}`}
-          disabled={!allowDrag}
           title={
-            allowDrag
+            Object.keys(dragHandleProps).length > 0
               ? "Drag to reorder"
               : "Switch to Custom sort to reorder"
           }
-          {...(allowDrag ? dragHandleProps : {})}
+          disabled={Object.keys(dragHandleProps).length === 0}
+          {...dragHandleProps}
         >
           <GripIcon />
         </button>
@@ -964,7 +980,7 @@ function ProjectRowOverlay({
       aria-hidden="true"
     >
       <div
-        className={`project-row is-drag-overlay priority-row-${project.priority.toLowerCase()}`}
+        className={`project-row is-drag-overlay priority-row-${project.priority.toLowerCase()}${gitRowClass(project.githubStatus)}`}
         role="row"
       >
         <OverlayRowCells project={project} iconOnly={iconOnly} />
@@ -973,8 +989,7 @@ function ProjectRowOverlay({
   );
 }
 
-/** Plain row — no useSortable (used for column header sorts). */
-function ProjectRow({
+const ProjectRow = memo(function ProjectRow({
   project,
   busyId,
   busyAction,
@@ -982,7 +997,6 @@ function ProjectRow({
   animateEnter = false,
   index = 0,
   iconOnly = false,
-  allowDrag = false,
   isDragging = false,
   dragHandleProps,
   setNodeRef,
@@ -999,7 +1013,6 @@ function ProjectRow({
   onArchive,
   onRestore,
 }: RowProps & {
-  allowDrag?: boolean;
   isDragging?: boolean;
   dragHandleProps?: Record<string, unknown>;
   setNodeRef?: (node: HTMLElement | null) => void;
@@ -1018,13 +1031,12 @@ function ProjectRow({
       ref={setNodeRef}
       style={rowStyle}
       role="row"
-      className={`project-row${animateEnter ? " enter-fade" : ""} priority-row-${project.priority.toLowerCase()}${isDragging ? " is-dragging" : ""}`}
+      className={`project-row${animateEnter ? " enter-fade" : ""} priority-row-${project.priority.toLowerCase()}${gitRowClass(project.githubStatus)}${isDragging ? " is-dragging" : ""}`}
       data-dragging={isDragging || undefined}
     >
       <InteractiveRowCells
         project={project}
         isDragging={isDragging}
-        allowDrag={allowDrag}
         dragHandleProps={dragHandleProps ?? {}}
         iconOnly={iconOnly}
         onToggleFavorite={onToggleFavorite}
@@ -1050,9 +1062,8 @@ function ProjectRow({
       />
     </div>
   );
-}
+});
 
-/** Custom-sort only — mounts useSortable. */
 function SortableProjectRow({
   reduceMotion = false,
   ...props
@@ -1078,7 +1089,6 @@ function SortableProjectRow({
   return (
     <ProjectRow
       {...props}
-      allowDrag
       isDragging={isDragging}
       setNodeRef={setNodeRef}
       style={style}
@@ -1156,7 +1166,7 @@ interface TableProps {
   onAdd?: () => void;
   addBusy?: boolean;
   addDisabled?: boolean;
-  onReorder: (activeId: string, overId: string) => void;
+  onReorder: (visibleIds: string[], activeId: string, overId: string) => void;
   onToggleFavorite: (id: string) => void;
   onPriorityChange: (id: string, priority: Priority) => void;
   onStatusChange: (id: string, status: Status) => void;
@@ -1207,7 +1217,6 @@ export function ProjectsTable({
     setAnimateEnter(false);
   }, []);
 
-  const allowDrag = sort.key === "custom";
   const iconOnly = layout === "phone";
 
   // Same-key dir toggle: reverse prior result instead of full compare re-sort.
@@ -1287,7 +1296,11 @@ export function ProjectsTable({
     setActiveId(null);
     setOverlayWidth(undefined);
     if (over && active.id !== over.id) {
-      onReorder(String(active.id), String(over.id));
+      onReorder(itemIds, String(active.id), String(over.id));
+      if (sort.key !== "custom") {
+        writeStoredSort(DEFAULT_SORT);
+        setSort(DEFAULT_SORT);
+      }
     }
   }
 
@@ -1423,7 +1436,7 @@ export function ProjectsTable({
         </div>
         <div className="projects-table-body" role="rowgroup">
           {displayProjects.map((project, index) =>
-            allowDrag ? (
+            sort.key === "custom" ? (
               <SortableProjectRow
                 key={project.id}
                 project={project}
@@ -1445,7 +1458,7 @@ export function ProjectsTable({
     </div>
   );
 
-  if (!allowDrag) {
+  if (sort.key !== "custom") {
     return table;
   }
 

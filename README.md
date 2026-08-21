@@ -26,11 +26,13 @@ Double-click **`run.bat`**. It:
 3. Rebuilds the release EXE when it is missing or source is newer
 4. Launches `src-tauri\target\release\deez-project-manager.exe`
 
-Force a rebuild: `run.bat --rebuild`. Create a Desktop shortcut to the same launcher: `run.bat --shortcut`.
+Force a rebuild: `run.bat --rebuild`. Create Desktop + Start Menu shortcuts to the same launcher: `run.bat --shortcut`.
+
+**Pin the Desktop or Start Menu shortcut** — not the release EXE under `src-tauri\target`, and not the running app from the taskbar (Windows would re-pin the bare binary and skip rebuild).
+
+If you still open the release EXE directly (or pin it), it self-handoffs to `run.bat` when source is newer or git is behind upstream — then rebuilds and relaunches. **Open on startup** stays on the release EXE for a fast login and skips that check (`--autostart`); the next shortcut launch picks up updates. Enabling the toggle under `tauri dev` is disabled. After the first release launch, turn **Open on startup** back on if you want login autostart.
 
 Do **not** pin the debug EXE or open `http://127.0.0.1:5187` in a browser — that Vite URL has no Tauri IPC.
-
-**Open on startup** registers the **release EXE** (not `run.bat`) under the Windows Run key so login stays fast. The next `run.bat` / Desktop shortcut launch picks up source changes. Enabling the toggle under `tauri dev` is disabled. After the first release launch, turn **Open on startup** back on if you want login autostart.
 
 Installers (optional): `src-tauri\target\release\bundle\nsis\` and `...\msi\`.
 
@@ -43,7 +45,9 @@ Double-click **`run.command`** (or `chmod +x run.command` once if Finder complai
 3. Rebuilds the release `.app` when it is missing or source is newer
 4. Opens `src-tauri/target/release/bundle/macos/Deez Project Manager.app`
 
-Force a rebuild: `./run.command --rebuild`. Desktop alias: `./run.command --shortcut`.
+Force a rebuild: `./run.command --rebuild`. Shortcuts: `./run.command --shortcut` creates a Desktop `.command` alias and installs `~/Applications/Deez Project Manager.app` (smart launcher + product icon; Finder reveals it for Dock pinning).
+
+**Pin `~/Applications/Deez Project Manager.app` to the Dock** — not the release bundle under `src-tauri/target`. If the release `.app` is opened directly, it self-handoffs to `run.command` when an update is ready (same rules as Windows). Login LaunchAgent / `--autostart` skips the check for a fast start.
 
 Signed/notarized `.dmg` distribution is not included yet; this launches the local release build.
 
