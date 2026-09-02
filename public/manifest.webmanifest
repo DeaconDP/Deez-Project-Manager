@@ -1,7 +1,7 @@
 {
   "name": "Deez Project Manager",
   "short_name": "Deez PM",
-  "description": "Portfolio project manager — mesh-synced across your devices",
+  "description": "Portfolio project manager — gist mesh sync + Tailscale live node",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0a0c10",

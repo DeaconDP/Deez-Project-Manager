@@ -13,6 +13,7 @@ mod store;
 mod types;
 mod usage;
 mod usb;
+mod remote;
 mod win_cmd;
 
 use models::{
@@ -23,6 +24,7 @@ use scheduler::{run_latency_suite, start_scheduler, SamplerState};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
+use tauri::Manager;
 use tauri::{AppHandle, Emitter};
 use tauri_plugin_dialog::{DialogExt, FilePath};
 use types::{LatencyResult, MetricsSnapshot, SpikeEvent};
@@ -37,8 +39,8 @@ use usb::model::UsbDevice;
 use usb::watch::{start_watcher, update_fingerprint};
 use usb::{enumerate, get_device};
 
-struct MonitorState {
-    sampler: Arc<SamplerState>,
+pub(crate) struct MonitorState {
+    pub(crate) sampler: Arc<SamplerState>,
     last_usb_fingerprint: Arc<Mutex<String>>,
     usb_watch_enabled: Arc<AtomicBool>,
 }
@@ -724,6 +726,7 @@ pub fn run() {
             usb_watch_enabled,
         })
         .manage(fuel_state)
+        .manage(remote::RemoteHandle::new())
         .invoke_handler(tauri::generate_handler![
             get_projects,
             heal_project_engines,
@@ -769,6 +772,9 @@ pub fn run() {
             mesh_set_pat,
             mesh_clear_pat,
             mesh_get_pat,
+            remote::remote_get_info,
+            remote::remote_qr_svg,
+            remote::remote_save_settings,
         ])
         .setup(move |app| {
             startup::refresh_autostart_registration(app);
@@ -782,9 +788,16 @@ pub fn run() {
                 });
             });
             let handle = app.handle().clone();
-            start_scheduler(handle.clone(), sampler_for_sched);
+            start_scheduler(handle.clone(), sampler_for_sched.clone());
             start_watcher(handle.clone(), fp_for_watch, usb_enabled_for_watch);
-            start_fuel_scheduler(handle, fuel_for_sched);
+            start_fuel_scheduler(handle.clone(), fuel_for_sched.clone());
+            let remote_handle = app.state::<remote::RemoteHandle>();
+            remote::maybe_autostart(
+                &handle,
+                &remote_handle,
+                sampler_for_sched,
+                fuel_for_sched,
+            );
             Ok(())
         })
         .run(tauri::generate_context!())

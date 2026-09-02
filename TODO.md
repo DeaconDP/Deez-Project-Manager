@@ -91,7 +91,7 @@
 - [x] Runtime lightening: isolate metrics/fuel from Projects re-renders; idle sampler pace; USB watch gated; strip agent debug I/O
 - [x] Header glance: true center (3-col grid chrome) + load-tier value colors (blue/green/yellow, orange >100%)
 
-## Mesh network
+## Mesh network (gist hub)
 
 - [x] Private GitHub gist hub (`deez-mesh.json`) for projects + tasks
 - [x] LWW merge by `updatedAt`; keep per-device `localPath` / git probe / sync roots
@@ -100,3 +100,13 @@
 - [x] Auto-sync on enable, after local saves, and every ~90s
 - [x] Browser/PWA store fallback so iPhone / Android can join
 - [x] `scripts/serve-mesh.sh` + web manifest for LAN phone install
+
+## Tailscale live node + phone PWA
+
+- [x] Settings: Tailscale IPv4 / MagicDNS detect + sticky remote port; copy URL + QR
+- [x] Host HTTP (tailnet bind only): serve `dist/` + read `GET` projects / metrics / fuel snapshot
+- [x] PWA manifest + minimal SW; verify iPhone Add to Home Screen on MagicDNS URL
+- [x] `api.ts` fetch adapter when not in Tauri; hide/disable Open Unity / Reveal / folder pickers in browser
+- [x] Optional shared-secret header on remote API (tailnet ACL still primary)
+- [x] Remote write: status / priority / kanban via existing `save_projects` path
+- [x] Settings peer list (MagicDNS names) + switch active node from phone
