@@ -76,6 +76,41 @@ Portfolio project dashboard (Tauri) replacing day-to-day Unity Hub / VCC list us
 - Optional filesystem watch / auto-discover (still open)
 - Deduplicate against GitHub-imported backlog (via Sync + import path linking)
 
+### Tailscale mesh + phone access (poteto)
+
+**Job:** open the live node (projects + Ada glance) from an iPhone on the same Tailscale tailnet — not a second product, not a public SaaS.
+
+**Poteto verdict (do this, refuse the rest):**
+1. Ship a **PWA URL over Tailscale** first. No App Store / Expo / Tauri-iOS until the PWA proves the job.
+2. Each desktop Deez instance is a **node**. Networking = Tailscale MagicDNS + HTTP bound to the tailnet IP only (never Funnel / public bind for v1).
+3. One thin local HTTP surface inside the running Tauri app: static `dist/` + JSON that mirrors the existing invoke commands we actually need remote. Dual `api.ts` (Tauri IPC vs `fetch`).
+4. Multi-node = **switch MagicDNS host** (bookmark peers). No central coordinator, no CRDT mesh, no custom VPN.
+5. Keep gist/repo **Sync** epic separate: that is offline metadata replica; Tailscale is live remote UI into a node’s store + metrics.
+
+**Slices (in order):**
+- [ ] Settings: detect Tailscale IPv4 / MagicDNS hostname; sticky remote port; copy URL + QR for phone
+- [ ] Embed read-mostly HTTP server (bind `100.x` / Tailscale iface only): `GET` projects store + metrics/fuel snapshots
+- [ ] Serve Vite build as installable PWA (`manifest` + minimal service worker); phone Add to Home Screen
+- [ ] `api.ts` browser adapter when `__TAURI_INTERNALS__` missing; degrade desktop-only actions (Open Unity / Reveal / pickers)
+- [ ] Optional shared secret header (belt on top of tailnet ACL); never commit tokens
+- [ ] Write-path remote: status / priority / kanban edits that already save through `save_projects`
+- [ ] Peer list in Settings (paste MagicDNS names); one-tap switch which node the phone is talking to
+- [ ] Later only if needed: remote “Run / Open on host” with explicit confirm — not in first phone cut
+
+**Non-goals (explicit):**
+- Native iOS app, TestFlight, or App Store listing before PWA
+- Tailscale Funnel / public internet exposure
+- Replacing local-first store with a cloud DB
+- Per-packet sync protocol between nodes (use Sync epic / gist if offline replica is the real need)
+- Shipping Fuel credentials or OS secret-store material to the phone
+
+### Sync vs Tailscale (how they differ)
+| Need | Use |
+|--|--|
+| Phone / iPad glance + light edits while on tailnet | Tailscale PWA URL into a live node |
+| Two PCs stay aligned when not simultaneously online | Sync epic (gist/repo) — still deferred |
+| “Everything” including Open Unity from couch | Host stays authoritative; phone triggers optional remote-exec later |
+
 ## Deferred
 
 - 2026-07-19: Native macOS Apple GPU, CPU temperature, Wi‑Fi, USB topology, and per-process network telemetry — local Mac compatibility ships with explicit unavailable states first (`src-tauri/src/metrics/`, `src-tauri/src/net/`, `src-tauri/src/usb/mod.rs:28`).
@@ -91,3 +126,7 @@ Portfolio project dashboard (Tauri) replacing day-to-day Unity Hub / VCC list us
 - 2026-07-16: Process-list virtualization / gauge CSS redesign during lightening pass — not needed at current load; runtime wins were isolate + idle pace + USB gate (`src/App.tsx`, `src-tauri/src/scheduler.rs`).
 - 2026-07-16: Kanban custom columns / WIP limits / comment edit-delete — v1 is fixed columns with append-only comments (`src/components/KanbanBoard.tsx`).
 - 2026-07-16: Rename project-table Priority “Default” → “Opt” — board tasks only; projects keep Default (`src/types.ts`).
+- 2026-09-02: Native iOS / Expo / Tauri-mobile shell — poteto: PWA over Tailscale first; revisit only if Home Screen PWA fails a real phone job (`ROADMAP.md` Tailscale mesh epic).
+- 2026-09-02: Tailscale Funnel / public bind for remote HTTP — stay on tailnet-only bind + MagicDNS; Funnel is a separate threat model (`ROADMAP.md` Tailscale mesh epic).
+- 2026-09-02: Custom multi-node sync protocol / CRDT over Tailscale — live UI is host-authoritative; offline replica stays Sync (gist/repo) epic (`src-tauri/src/store.rs`).
+- 2026-09-02: Phone-side Fuel credential entry or secret-store proxy — credentials stay on the host node (`src-tauri/src/usage/credentials.rs`).

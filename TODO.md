@@ -90,3 +90,13 @@
 - [x] Open on startup: clamp/show/focus after login; quote Run key; DEV clears debug registration
 - [x] Runtime lightening: isolate metrics/fuel from Projects re-renders; idle sampler pace; USB watch gated; strip agent debug I/O
 - [x] Header glance: true center (3-col grid chrome) + load-tier value colors (blue/green/yellow, orange >100%)
+
+## Tailscale mesh + phone PWA (poteto plan → build)
+
+- [ ] Settings: Tailscale IPv4 / MagicDNS detect + sticky remote port; copy URL + QR
+- [ ] Host HTTP (tailnet bind only): serve `dist/` + read `GET` projects / metrics / fuel snapshot
+- [ ] PWA manifest + minimal SW; verify iPhone Add to Home Screen on MagicDNS URL
+- [ ] `api.ts` fetch adapter when not in Tauri; hide/disable Open Unity / Reveal / folder pickers in browser
+- [ ] Optional shared-secret header on remote API (tailnet ACL still primary)
+- [ ] Remote write: status / priority / kanban via existing `save_projects` path
+- [ ] Settings peer list (MagicDNS names) + switch active node from phone
