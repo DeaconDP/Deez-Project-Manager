@@ -29,7 +29,11 @@ sysinfo = "0.33"
 rusqlite = { version = "0.32", features = ["bundled"] }
 dirs = "6"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
-tokio = { version = "1", features = ["rt-multi-thread", "time", "sync", "macros"] }
+tokio = { version = "1", features = ["rt-multi-thread", "time", "sync", "macros", "net", "io-util"] }
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio", "query"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["fs"] }
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 aes = "0.8"
 cbc = { version = "0.1", features = ["alloc"] }
 cipher = { version = "0.4", features = ["block-padding", "alloc"] }

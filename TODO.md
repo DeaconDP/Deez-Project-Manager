@@ -93,10 +93,10 @@
 
 ## Tailscale mesh + phone PWA (poteto plan → build)
 
-- [ ] Settings: Tailscale IPv4 / MagicDNS detect + sticky remote port; copy URL + QR
-- [ ] Host HTTP (tailnet bind only): serve `dist/` + read `GET` projects / metrics / fuel snapshot
-- [ ] PWA manifest + minimal SW; verify iPhone Add to Home Screen on MagicDNS URL
-- [ ] `api.ts` fetch adapter when not in Tauri; hide/disable Open Unity / Reveal / folder pickers in browser
-- [ ] Optional shared-secret header on remote API (tailnet ACL still primary)
-- [ ] Remote write: status / priority / kanban via existing `save_projects` path
-- [ ] Settings peer list (MagicDNS names) + switch active node from phone
+- [x] Settings: Tailscale IPv4 / MagicDNS detect + sticky remote port; copy URL + QR
+- [x] Host HTTP (tailnet bind only): serve `dist/` + read `GET` projects / metrics / fuel snapshot
+- [x] PWA manifest + minimal SW; verify iPhone Add to Home Screen on MagicDNS URL
+- [x] `api.ts` fetch adapter when not in Tauri; hide/disable Open Unity / Reveal / folder pickers in browser
+- [x] Optional shared-secret header on remote API (tailnet ACL still primary)
+- [x] Remote write: status / priority / kanban via existing `save_projects` path
+- [x] Settings peer list (MagicDNS names) + switch active node from phone

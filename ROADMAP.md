@@ -88,13 +88,13 @@ Portfolio project dashboard (Tauri) replacing day-to-day Unity Hub / VCC list us
 5. Keep gist/repo **Sync** epic separate: that is offline metadata replica; Tailscale is live remote UI into a node’s store + metrics.
 
 **Slices (in order):**
-- [ ] Settings: detect Tailscale IPv4 / MagicDNS hostname; sticky remote port; copy URL + QR for phone
-- [ ] Embed read-mostly HTTP server (bind `100.x` / Tailscale iface only): `GET` projects store + metrics/fuel snapshots
-- [ ] Serve Vite build as installable PWA (`manifest` + minimal service worker); phone Add to Home Screen
-- [ ] `api.ts` browser adapter when `__TAURI_INTERNALS__` missing; degrade desktop-only actions (Open Unity / Reveal / pickers)
-- [ ] Optional shared secret header (belt on top of tailnet ACL); never commit tokens
-- [ ] Write-path remote: status / priority / kanban edits that already save through `save_projects`
-- [ ] Peer list in Settings (paste MagicDNS names); one-tap switch which node the phone is talking to
+- [x] Settings: detect Tailscale IPv4 / MagicDNS hostname; sticky remote port; copy URL + QR for phone
+- [x] Embed read-mostly HTTP server (bind `100.x` / Tailscale iface only): `GET` projects store + metrics/fuel snapshots
+- [x] Serve Vite build as installable PWA (`manifest` + minimal service worker); phone Add to Home Screen
+- [x] `api.ts` browser adapter when `__TAURI_INTERNALS__` missing; degrade desktop-only actions (Open Unity / Reveal / pickers)
+- [x] Optional shared secret header (belt on top of tailnet ACL); never commit tokens
+- [x] Write-path remote: status / priority / kanban edits that already save through `save_projects`
+- [x] Peer list in Settings (paste MagicDNS names); one-tap switch which node the phone is talking to
 - [ ] Later only if needed: remote “Run / Open on host” with explicit confirm — not in first phone cut
 
 **Non-goals (explicit):**
