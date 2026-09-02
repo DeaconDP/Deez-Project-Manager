@@ -90,3 +90,13 @@
 - [x] Open on startup: clamp/show/focus after login; quote Run key; DEV clears debug registration
 - [x] Runtime lightening: isolate metrics/fuel from Projects re-renders; idle sampler pace; USB watch gated; strip agent debug I/O
 - [x] Header glance: true center (3-col grid chrome) + load-tier value colors (blue/green/yellow, orange >100%)
+
+## Mesh network
+
+- [x] Private GitHub gist hub (`deez-mesh.json`) for projects + tasks
+- [x] LWW merge by `updatedAt`; keep per-device `localPath` / git probe / sync roots
+- [x] Settings: Join mesh, device name, gist ID, PAT, Sync now, peer count
+- [x] Desktop PAT via protected credential store; PWA via device storage
+- [x] Auto-sync on enable, after local saves, and every ~90s
+- [x] Browser/PWA store fallback so iPhone / Android can join
+- [x] `scripts/serve-mesh.sh` + web manifest for LAN phone install

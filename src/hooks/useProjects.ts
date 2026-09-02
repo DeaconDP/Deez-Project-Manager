@@ -194,6 +194,19 @@ export function useProjects() {
     [persist],
   );
 
+  /** Apply a mesh-synced store (already persisted) into React state. */
+  const applyMeshStore = useCallback((store: ProjectStore) => {
+    const sorted = sortProjects((store.projects ?? []).map(normalizeProject));
+    const loadedTasks = (store.tasks ?? []).map(normalizeTask);
+    const roots = store.syncRoots ?? syncRootsRef.current;
+    latestRef.current = sorted;
+    tasksRef.current = loadedTasks;
+    syncRootsRef.current = roots;
+    setProjects(sorted);
+    setTasks(loadedTasks);
+    setSyncRootsState(roots);
+  }, []);
+
   /** Merge a background git-fetch result without re-persisting (Rust already saved). */
   const applyGitSyncUpdate = useCallback((update: GitSyncUpdated) => {
     const next = latestRef.current.map((p) =>
@@ -423,6 +436,7 @@ export function useProjects() {
     setError,
     reload,
     replaceAll,
+    applyMeshStore,
     applyGitSyncUpdate,
     setSyncRoots,
     upsert,

@@ -3,20 +3,22 @@
 Tauri portfolio project manager for Unity / Unreal / Web / consulting backlog — plus Ada-Monitor machine and AI Fuel views.
 
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue)
-![Platform: macOS · Windows](https://img.shields.io/badge/platform-macOS%20%20%7C%20%20Windows-informational)
+![Platform: macOS · Windows · Linux · PWA](https://img.shields.io/badge/platform-macOS%20%20%7C%20%20Windows%20%20%7C%20%20Linux%20%20%7C%20%20PWA-informational)
 
 ## Who it’s for
 
-Builders juggling many local projects who want Hub/VCC-style lists, drag-and-drop priority, and a glance at CPU/RAM/GPU/disk and AI usage caps.
+Builders juggling many local projects who want Hub/VCC-style lists, drag-and-drop priority, and a glance at CPU/RAM/GPU/disk and AI usage caps — synced across every machine and phone as a mesh.
 
 ## Quick start
 
-**Requires** Node.js 20+, Rust, Xcode CLT (macOS) or MSVC + WebView2 (Windows).
+**Requires** Node.js 20+, Rust, Xcode CLT (macOS) or MSVC + WebView2 (Windows). Linux needs standard Tauri/WebKitGTK deps.
 
 | Platform | How |
 |--|--|
 | macOS | Double-click **`run.command`** |
 | Windows | Double-click **`run.bat`** |
+| Linux | `npm run tauri -- build` then run the AppImage/deb, or `npm run tauri -- dev` |
+| iPhone / Android | On a always-on box (e.g. Linux): `./scripts/serve-mesh.sh` → open the LAN URL → Add to Home Screen |
 
 Launches the **release** desktop app (not a browser tab). Dev HMR: `npm run tauri:dev` — use the native window, not `:5187` alone.
 
@@ -42,15 +44,27 @@ Force a rebuild: `run.bat --rebuild` / `./run.command --rebuild`.
 - Drag-and-drop reorder; autosave to app data
 - Import from Unity Hub / VCC; add local folders; GitHub import
 - Ada-Monitor: Overview, Processes, Fuel, Settings
+- **Mesh network**: one private GitHub gist links all devices (Macs, PCs, Linux, iPhone, Android). Projects + kanban tasks sync; local folder paths stay on each machine.
+
+### Link your devices (mesh)
+
+1. Create a GitHub PAT with **`gist`** scope (classic) — never commit it.
+2. On the first device → **Settings → Mesh network** → paste PAT → **Save PAT** → **Sync now** (creates a private gist).
+3. Copy the **Gist ID** shown after sync.
+4. On every other device (and the phone PWA): same PAT → paste that Gist ID → **Save name / gist** → **Join mesh** → **Sync now**.
+5. Leave **Join mesh** on; the app pulls/pushes after edits and about every 90s.
+
+Phones are metadata/kanban nodes. Desktop apps still own Unity / Explorer / `run.*` actions.
 
 ## Limitations
 
 - Not a full Unity Hub / VCC replacement (see ROADMAP.md)
 - Some macOS metrics (Apple GPU temps, Wi‑Fi, USB topology) show unavailable states
+- Mesh does not sync machine-local paths or Ada metrics
 
 ## Development
 
-Sticky Vite port **5187** for `tauri:dev` webview only.
+Sticky Vite port **5187** for `tauri:dev` webview only. LAN PWA: `./scripts/serve-mesh.sh`.
 
 ## Credit
 

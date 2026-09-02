@@ -1,6 +1,7 @@
 mod github;
 mod hub_vcc;
 mod launch_gate;
+mod mesh;
 mod metrics;
 mod models;
 mod net;
@@ -25,6 +26,9 @@ use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter};
 use tauri_plugin_dialog::{DialogExt, FilePath};
 use types::{LatencyResult, MetricsSnapshot, SpikeEvent};
+use mesh::{
+    mesh_clear_pat, mesh_get_config, mesh_get_pat, mesh_save_config, mesh_set_pat,
+};
 use usage::{
     fuel_clear_credential, fuel_connect, fuel_get_settings, fuel_get_snapshot, fuel_refresh,
     fuel_save_settings, fuel_set_credential, fuel_test, start_fuel_scheduler, FuelState,
@@ -760,6 +764,11 @@ pub fn run() {
             fuel_test,
             fuel_set_credential,
             fuel_clear_credential,
+            mesh_get_config,
+            mesh_save_config,
+            mesh_set_pat,
+            mesh_clear_pat,
+            mesh_get_pat,
         ])
         .setup(move |app| {
             startup::refresh_autostart_registration(app);
