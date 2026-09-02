@@ -29,6 +29,7 @@ import { Spinner } from "./components/Spinner";
 import { SyncMenu } from "./components/SyncMenu";
 import { ZoomControls } from "./components/ZoomControls";
 import { useAsyncAction } from "./hooks/useAsyncAction";
+import { useMesh } from "./hooks/useMesh";
 import { useProjects } from "./hooks/useProjects";
 import { useAppTitle } from "./hooks/useAppTitle";
 import { useUiZoom } from "./hooks/useUiZoom";
@@ -38,7 +39,7 @@ import {
   MetricsGlanceSlot,
   MetricsLiveSlot,
 } from "./monitor/components/MetricsChrome";
-import type { Project } from "./types";
+import type { Project, ProjectStore } from "./types";
 import "./App.css";
 import "./monitor/monitor.css";
 
@@ -94,6 +95,7 @@ function App() {
     error,
     setError,
     replaceAll,
+    applyMeshStore,
     applyGitSyncUpdate,
     setSyncRoots,
     upsert,
@@ -146,6 +148,24 @@ function App() {
   const [archiveTarget, setArchiveTarget] = useState<Project | null>(null);
   const [boardProjectId, setBoardProjectId] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const [meshDirtyEpoch, setMeshDirtyEpoch] = useState(0);
+  const wasSavingRef = useRef(false);
+
+  useEffect(() => {
+    if (wasSavingRef.current && !saving) {
+      setMeshDirtyEpoch((n) => n + 1);
+    }
+    wasSavingRef.current = saving;
+  }, [saving]);
+
+  const handleMeshMerged = useCallback((store: ProjectStore) => {
+    applyMeshStore(store);
+  }, [applyMeshStore]);
+
+  const mesh = useMesh({
+    dirtyEpoch: meshDirtyEpoch,
+    onStoreMerged: handleMeshMerged,
+  });
 
   const boardProject = useMemo(
     () =>
@@ -810,7 +830,7 @@ function App() {
             aria-labelledby="tab-settings"
           >
             <Suspense fallback={<ProjectsSkeleton />}>
-              <SettingsPanel />
+              <SettingsPanel mesh={mesh} />
             </Suspense>
           </div>
         ) : null}

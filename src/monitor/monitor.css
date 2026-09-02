@@ -150,6 +150,48 @@
   padding: 0.35rem 0;
 }
 
+.settings-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.4;
+  max-width: 36rem;
+}
+
+.mesh-settings {
+  margin-top: 1.4rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.mesh-settings .panel__head {
+  margin-bottom: 0.75rem;
+}
+
+.mesh-settings h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.settings-hint {
+  color: var(--muted);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.settings-meta {
+  margin: 0.85rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.4;
+  max-width: 36rem;
+  word-break: break-word;
+}
+
 .gauge-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

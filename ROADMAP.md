@@ -45,10 +45,13 @@ Portfolio project dashboard (Tauri) replacing day-to-day Unity Hub / VCC list us
 - Optional CSV import from the spreadsheet export
 
 ### Sync
-- Cross-PC metadata + sort sync via private GitHub gist or repo
-- Optional GitHub PAT in OS secret store (never commit tokens)
-- Rate-limit handling with authenticated API
+- [x] Cross-device metadata + sort + tasks sync via private GitHub gist (mesh hub)
+- [x] GitHub PAT in OS-protected credential store (desktop) / device storage (PWA)
+- [x] Device roster (peers) + Join mesh / Sync now in Settings
+- [x] Phone / browser PWA node (`scripts/serve-mesh.sh`) shares the same gist
+- Rate-limit handling with authenticated API (PAT path covers most cases)
 - Open PR count enrichment on project rows (GitHub API; PAT for private) — never GitHub Actions / workflow checks
+- Optional LAN peer discovery (still hub-via-gist; true P2P later if needed)
 
 ### Project kanban
 - Per-project board opened from project name click (Backlog → Priority → Doing → Testing → Done)
@@ -114,7 +117,8 @@ Portfolio project dashboard (Tauri) replacing day-to-day Unity Hub / VCC list us
 ## Deferred
 
 - 2026-07-19: Native macOS Apple GPU, CPU temperature, Wi‑Fi, USB topology, and per-process network telemetry — local Mac compatibility ships with explicit unavailable states first (`src-tauri/src/metrics/`, `src-tauri/src/net/`, `src-tauri/src/usb/mod.rs:28`).
-- 2026-07-15: Cross-PC metadata sync — v1 is local-first only (`src-tauri/src/store.rs`).
+- 2026-07-15: Cross-PC metadata sync — superseded 2026-09-02 by gist mesh hub (`src/lib/mesh.ts`, `src-tauri/src/mesh.rs`).
+- 2026-09-02: True LAN P2P / mDNS mesh — hub-via-private-gist is enough for Dale’s 7-device set; local paths stay per-device (`src/lib/mesh.ts`).
 - 2026-07-15: Full Hub/VCC package + create-project — out of v1 scope; list import is shipped (`src-tauri/src/hub_vcc.rs`).
 - 2026-07-15: Cashflow months/Gross/Nett UI — spreadsheet fields kept optional on Project; ledger epic later.
 - 2026-07-15: GitHub PAT / private repo import — public DeaconDP import only in v1 (`src-tauri/src/github.rs`).

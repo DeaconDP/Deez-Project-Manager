@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import {
   getRemoteBase,
-  isTauri,
+  isDesktopApp,
   rememberBrowserToken,
   remoteGetInfo,
   remoteQrSvg,
@@ -10,14 +10,34 @@ import {
   setRemoteBase,
   type RemoteInfoDto,
 } from "../../api";
-
+import type { MeshConfig } from "../../lib/mesh";
 import { Toggle } from "./Toggle";
 
 const isDev = import.meta.env.DEV;
 const DEFAULT_PORT = 5197;
 
-export function SettingsPanel() {
-  const desktop = isTauri();
+type Props = {
+  mesh: {
+    config: MeshConfig | null;
+    loading: boolean;
+    syncing: boolean;
+    error: string | null;
+    feedback: string | null;
+    setFeedback: (v: string | null) => void;
+    setError: (v: string | null) => void;
+    patchConfig: (patch: {
+      enabled?: boolean;
+      gistId?: string;
+      deviceName?: string;
+    }) => Promise<MeshConfig>;
+    savePat: (secret: string) => Promise<MeshConfig>;
+    clearPat: () => Promise<MeshConfig>;
+    syncNow: () => Promise<unknown>;
+  };
+};
+
+export function SettingsPanel({ mesh }: Props) {
+  const desktop = isDesktopApp();
   const [openOnStartup, setOpenOnStartup] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -30,6 +50,20 @@ export function SettingsPanel() {
   const [peersDraft, setPeersDraft] = useState("");
   const [portDraft, setPortDraft] = useState(DEFAULT_PORT);
   const [peerSwitch, setPeerSwitch] = useState(getRemoteBase());
+
+  const [patDraft, setPatDraft] = useState("");
+  const [gistDraft, setGistDraft] = useState("");
+  const [nameDraft, setNameDraft] = useState("");
+  const [meshBusy, setMeshBusy] = useState<
+    null | "pat" | "save" | "sync" | "clear"
+  >(null);
+
+  useEffect(() => {
+    if (mesh.config) {
+      setGistDraft(mesh.config.gistId ?? "");
+      setNameDraft(mesh.config.deviceName);
+    }
+  }, [mesh.config]);
 
   useEffect(() => {
     let cancelled = false;
@@ -177,6 +211,78 @@ export function SettingsPanel() {
     window.location.assign(url);
   }
 
+  
+  async function saveMeshIdentity() {
+    if (meshBusy) return;
+    setMeshBusy("save");
+    try {
+      await mesh.patchConfig({
+        deviceName: nameDraft,
+        gistId: gistDraft,
+      });
+      mesh.setFeedback("Device name / gist ID saved.");
+      mesh.setError(null);
+    } catch (e) {
+      mesh.setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setMeshBusy(null);
+    }
+  }
+
+  async function savePat() {
+    if (meshBusy || !patDraft.trim()) return;
+    setMeshBusy("pat");
+    try {
+      await mesh.savePat(patDraft.trim());
+      setPatDraft("");
+    } catch (e) {
+      mesh.setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setMeshBusy(null);
+    }
+  }
+
+  async function clearPat() {
+    if (meshBusy) return;
+    setMeshBusy("clear");
+    try {
+      await mesh.clearPat();
+    } catch (e) {
+      mesh.setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setMeshBusy(null);
+    }
+  }
+
+  async function toggleMesh(next: boolean) {
+    if (meshBusy) return;
+    setMeshBusy("save");
+    try {
+      await mesh.patchConfig({ enabled: next });
+      mesh.setFeedback(
+        next
+          ? "Mesh on — this device will sync projects & tasks."
+          : "Mesh off on this device.",
+      );
+    } catch (e) {
+      mesh.setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setMeshBusy(null);
+    }
+  }
+
+  async function syncNow() {
+    if (meshBusy || mesh.syncing) return;
+    setMeshBusy("sync");
+    try {
+      await mesh.syncNow();
+    } catch {
+      /* mesh hook sets error */
+    } finally {
+      setMeshBusy(null);
+    }
+  }
+
   const ts = remote?.tailscale;
 
   return (
@@ -185,8 +291,8 @@ export function SettingsPanel() {
         <h2 id="settings-title">Settings</h2>
         <p className="panel__desc">
           {desktop
-            ? "App preferences for this computer"
-            : "Phone / PWA view of a Tailscale node"}
+            ? "This device · gist mesh sync + Tailscale live node"
+            : "Phone / PWA · gist mesh and/or Tailscale live node"}
         </p>
       </header>
 
@@ -216,12 +322,164 @@ export function SettingsPanel() {
             busy={busy}
             onChange={(v) => void setOpenOnStartupPreference(v)}
           />
+
+        ) : (
+          <p className="settings-note">
+            Phone / browser node — projects & kanban sync over the gist mesh.
+            Live Ada metrics need a Tailscale node URL. Folder / Unity actions
+            stay on desktop.
+          </p>
+        )}
+      </div>
+
+      <div className="mesh-settings" aria-labelledby="mesh-title">
+        <header className="panel__head">
+          <h3 id="mesh-title">Mesh network</h3>
+          <p className="panel__desc">
+            One private GitHub gist is the hub. Every Mac, PC, Linux box, iPhone,
+            and Android joins with the same PAT + gist ID.
+          </p>
+        </header>
+
+        {mesh.error ? (
+          <p className="status status--error" role="alert">
+            {mesh.error}
+          </p>
+        ) : null}
+        {mesh.feedback ? (
+          <p className="status status--ok" role="status">
+            {mesh.feedback}
+          </p>
         ) : null}
 
+        <div className="settings-list">
+          <Toggle
+            id="mesh-enabled"
+            label="Join mesh"
+            description={
+              mesh.config?.peerCount
+                ? `${mesh.config.peerCount} peer${mesh.config.peerCount === 1 ? "" : "s"} seen`
+                : "Pull / push project metadata & tasks across your devices"
+            }
+            checked={!!mesh.config?.enabled}
+            disabled={mesh.loading || !!meshBusy}
+            busy={meshBusy === "save"}
+            onChange={(v) => void toggleMesh(v)}
+          />
+        </div>
+
+        <div className="fuel-field">
+          <label htmlFor="mesh-device-name">This device name</label>
+          <input
+            id="mesh-device-name"
+            type="text"
+            autoComplete="off"
+            value={nameDraft}
+            onChange={(e) => setNameDraft(e.target.value)}
+            disabled={!!meshBusy}
+          />
+        </div>
+
+        <div className="fuel-field">
+          <label htmlFor="mesh-gist-id">
+            Gist ID{" "}
+            <span className="settings-hint">
+              (blank on first sync creates one)
+            </span>
+          </label>
+          <input
+            id="mesh-gist-id"
+            type="text"
+            autoComplete="off"
+            spellCheck={false}
+            placeholder="paste shared gist id on other devices"
+            value={gistDraft}
+            onChange={(e) => setGistDraft(e.target.value)}
+            disabled={!!meshBusy}
+          />
+        </div>
+
+        <div className="fuel-source__actions">
+          <button
+            type="button"
+            className="btn btn--quiet"
+            disabled={!!meshBusy}
+            aria-busy={meshBusy === "save" || undefined}
+            onClick={() => void saveMeshIdentity()}
+          >
+            {meshBusy === "save" ? "Saving…" : "Save name / gist"}
+          </button>
+        </div>
+
+        <div className="fuel-source__secret">
+          <label htmlFor="mesh-pat">
+            GitHub PAT{" "}
+            <span className="settings-hint">
+              ({mesh.config?.hasPat ? "saved on this device" : "gist scope"})
+            </span>
+          </label>
+          <input
+            id="mesh-pat"
+            type="password"
+            autoComplete="off"
+            placeholder={
+              mesh.config?.hasPat ? "•••••••• (enter to replace)" : "ghp_…"
+            }
+            value={patDraft}
+            onChange={(e) => setPatDraft(e.target.value)}
+            disabled={!!meshBusy}
+          />
+        </div>
+
+        <div className="fuel-source__actions">
+          <button
+            type="button"
+            className="btn btn--primary"
+            disabled={!!meshBusy || !patDraft.trim()}
+            aria-busy={meshBusy === "pat" || undefined}
+            onClick={() => void savePat()}
+          >
+            {meshBusy === "pat" ? "Saving…" : "Save PAT"}
+          </button>
+          <button
+            type="button"
+            className="btn btn--quiet"
+            disabled={!!meshBusy || !mesh.config?.hasPat}
+            aria-busy={meshBusy === "clear" || undefined}
+            onClick={() => void clearPat()}
+          >
+            Clear PAT
+          </button>
+          <button
+            type="button"
+            className="btn btn--primary"
+            disabled={!!meshBusy || mesh.syncing || !mesh.config?.hasPat}
+            aria-busy={meshBusy === "sync" || mesh.syncing || undefined}
+            onClick={() => void syncNow()}
+          >
+            {mesh.syncing || meshBusy === "sync" ? "Syncing…" : "Sync now"}
+          </button>
+        </div>
+
+        {mesh.config?.lastSyncedAt ? (
+          <p className="settings-meta">
+            Last sync {new Date(mesh.config.lastSyncedAt).toLocaleString()}
+            {mesh.config.gistId ? ` · gist ${mesh.config.gistId}` : ""}
+          </p>
+        ) : (
+          <p className="settings-meta">
+            First device: Save PAT → Sync now (creates private gist). Other
+            devices: same PAT + paste that gist ID → Join mesh → Sync now.
+          </p>
+        )}
+      </div>
+
+      <div className="settings-list">
         <div className="settings-block">
           <h3 className="settings-block__title">Remote access</h3>
           <p className="settings-block__desc">
-            Tailscale-only PWA URL for this node. Not public internet.
+            Tailscale-only live PWA URL for this node (Ada + live store). Not
+            public internet. Complements gist mesh (offline replica).
           </p>
 
           {desktop ? (

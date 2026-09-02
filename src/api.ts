@@ -7,6 +7,8 @@ import type {
   Project,
   ProjectStore,
 } from "./types";
+import type { MeshConfig } from "./lib/mesh";
+import { defaultDeviceName, newDeviceId } from "./lib/mesh";
 import {
   getRemoteToken,
   isTauri,
@@ -24,10 +26,14 @@ export {
   setRemoteToken,
 } from "./lib/runtime";
 
-function assertTauriBridge(_cmd: string): void {
+const BROWSER_STORE_KEY = "deez-projects-store";
+const BROWSER_MESH_KEY = "deez-mesh-config";
+const BROWSER_PAT_KEY = "deez-mesh-pat";
+
+function assertTauriBridge(cmd: string): void {
   if (!isTauri()) {
     throw new Error(
-      "TAURI-001: Deez Project Manager must run in the desktop app window (run.bat / run.command / npm run tauri dev). Do not use a browser tab on :5187 — there is no Tauri IPC there.",
+      `TAURI-001: "${cmd}" needs the desktop app (run.bat / run.command). Mesh sync and project lists work in the phone PWA; folder/Unity actions do not.`,
     );
   }
 }
@@ -40,8 +46,100 @@ async function tauriInvoke<T>(
   return invoke<T>(cmd, args);
 }
 
+function emptyStore(): ProjectStore {
+  return { version: 1, projects: [], syncRoots: [], tasks: [] };
+}
+
+function readBrowserStore(): ProjectStore {
+  try {
+    const raw = localStorage.getItem(BROWSER_STORE_KEY);
+    if (!raw) return emptyStore();
+    const parsed = JSON.parse(raw) as ProjectStore;
+    return {
+      version: parsed.version || 1,
+      projects: parsed.projects ?? [],
+      syncRoots: parsed.syncRoots ?? [],
+      tasks: parsed.tasks ?? [],
+    };
+  } catch {
+    return emptyStore();
+  }
+}
+
+function writeBrowserStore(store: ProjectStore): void {
+  localStorage.setItem(BROWSER_STORE_KEY, JSON.stringify(store));
+}
+
+/** Tailscale-hosted PWA uses /api; standalone mesh PWA falls back to localStorage. */
+async function browserGetStore(): Promise<ProjectStore> {
+  try {
+    return await remoteFetch<ProjectStore>("/api/projects");
+  } catch {
+    return readBrowserStore();
+  }
+}
+
+async function browserSaveStore(store: ProjectStore): Promise<void> {
+  try {
+    await remoteFetch<void>("/api/projects", {
+      method: "PUT",
+      body: JSON.stringify(store),
+    });
+  } catch {
+    writeBrowserStore(store);
+  }
+}
+
+type BrowserMeshConfig = Omit<MeshConfig, "hasPat"> & { hasPat?: boolean };
+
+function readBrowserMesh(): MeshConfig {
+  try {
+    const raw = localStorage.getItem(BROWSER_MESH_KEY);
+    const pat = localStorage.getItem(BROWSER_PAT_KEY);
+    if (!raw) {
+      return {
+        enabled: false,
+        gistId: null,
+        deviceId: newDeviceId(),
+        deviceName: defaultDeviceName(),
+        hasPat: !!pat,
+        lastSyncedAt: null,
+        lastError: null,
+        peerCount: 0,
+      };
+    }
+    const parsed = JSON.parse(raw) as BrowserMeshConfig;
+    return {
+      enabled: !!parsed.enabled,
+      gistId: parsed.gistId ?? null,
+      deviceId: parsed.deviceId || newDeviceId(),
+      deviceName: parsed.deviceName || defaultDeviceName(),
+      hasPat: !!pat,
+      lastSyncedAt: parsed.lastSyncedAt ?? null,
+      lastError: parsed.lastError ?? null,
+      peerCount: parsed.peerCount ?? 0,
+    };
+  } catch {
+    return {
+      enabled: false,
+      gistId: null,
+      deviceId: newDeviceId(),
+      deviceName: defaultDeviceName(),
+      hasPat: !!localStorage.getItem(BROWSER_PAT_KEY),
+      lastSyncedAt: null,
+      lastError: null,
+      peerCount: 0,
+    };
+  }
+}
+
+function writeBrowserMesh(cfg: MeshConfig): void {
+  const { hasPat: _hasPat, ...rest } = cfg;
+  localStorage.setItem(BROWSER_MESH_KEY, JSON.stringify(rest));
+}
+
 export async function getProjects(): Promise<ProjectStore> {
-  if (!isTauri()) return remoteFetch<ProjectStore>("/api/projects");
+  if (!isTauri()) return browserGetStore();
   return tauriInvoke<ProjectStore>("get_projects");
 }
 
@@ -62,10 +160,7 @@ export async function checkPathsExist(paths: string[]): Promise<boolean[]> {
 
 export async function saveProjects(store: ProjectStore): Promise<void> {
   if (!isTauri()) {
-    await remoteFetch<void>("/api/projects", {
-      method: "PUT",
-      body: JSON.stringify(store),
-    });
+    await browserSaveStore(store);
     return;
   }
   return tauriInvoke("save_projects", { store });
@@ -157,10 +252,7 @@ export async function refreshGithubStatuses(): Promise<Project[]> {
 export async function onGitSyncUpdated(
   handler: (update: GitSyncUpdated) => void,
 ): Promise<() => void> {
-  if (!isTauri()) {
-    void handler;
-    return () => {};
-  }
+  if (!isTauri()) return () => {};
   assertTauriBridge("git-sync-updated");
   const { listen } = await import("@tauri-apps/api/event");
   return listen<GitSyncUpdated>("git-sync-updated", (event) => {
@@ -188,7 +280,86 @@ export async function syncAllParentFolders(): Promise<ImportResult> {
   return tauriInvoke<ImportResult>("sync_all_parent_folders");
 }
 
-/* —— Tailscale remote host (Settings) —— */
+export type MeshConfigPatch = {
+  enabled?: boolean;
+  gistId?: string;
+  clearGistId?: boolean;
+  deviceName?: string;
+  lastSyncedAt?: string;
+  clearLastSyncedAt?: boolean;
+  lastError?: string;
+  clearLastError?: boolean;
+  peerCount?: number;
+};
+
+export async function meshGetConfig(): Promise<MeshConfig> {
+  if (!isTauri()) {
+    const cfg = readBrowserMesh();
+    writeBrowserMesh(cfg);
+    return cfg;
+  }
+  return tauriInvoke<MeshConfig>("mesh_get_config");
+}
+
+export async function meshSaveConfig(
+  patch: MeshConfigPatch,
+): Promise<MeshConfig> {
+  if (!isTauri()) {
+    const cfg = readBrowserMesh();
+    if (patch.enabled !== undefined) cfg.enabled = patch.enabled;
+    if (patch.clearGistId) cfg.gistId = null;
+    else if (patch.gistId !== undefined) {
+      cfg.gistId = patch.gistId.trim() ? patch.gistId.trim() : null;
+    }
+    if (patch.deviceName?.trim()) cfg.deviceName = patch.deviceName.trim();
+    if (patch.clearLastSyncedAt) cfg.lastSyncedAt = null;
+    else if (patch.lastSyncedAt !== undefined) {
+      cfg.lastSyncedAt = patch.lastSyncedAt;
+    }
+    if (patch.clearLastError) cfg.lastError = null;
+    else if (patch.lastError !== undefined) {
+      cfg.lastError = patch.lastError.trim() ? patch.lastError : null;
+    }
+    if (patch.peerCount !== undefined) cfg.peerCount = patch.peerCount;
+    writeBrowserMesh(cfg);
+    return { ...cfg, hasPat: !!localStorage.getItem(BROWSER_PAT_KEY) };
+  }
+  return tauriInvoke<MeshConfig>("mesh_save_config", { patch });
+}
+
+export async function meshSetPat(secret: string): Promise<MeshConfig> {
+  if (!isTauri()) {
+    if (!secret.trim()) throw new Error("Secret cannot be empty.");
+    localStorage.setItem(BROWSER_PAT_KEY, secret.trim());
+    const cfg = readBrowserMesh();
+    cfg.hasPat = true;
+    writeBrowserMesh(cfg);
+    return cfg;
+  }
+  return tauriInvoke<MeshConfig>("mesh_set_pat", { secret });
+}
+
+export async function meshClearPat(): Promise<MeshConfig> {
+  if (!isTauri()) {
+    localStorage.removeItem(BROWSER_PAT_KEY);
+    const cfg = readBrowserMesh();
+    cfg.hasPat = false;
+    writeBrowserMesh(cfg);
+    return cfg;
+  }
+  return tauriInvoke<MeshConfig>("mesh_clear_pat");
+}
+
+export async function meshGetPat(): Promise<string | null> {
+  if (!isTauri()) {
+    return localStorage.getItem(BROWSER_PAT_KEY);
+  }
+  return tauriInvoke<string | null>("mesh_get_pat");
+}
+
+export function isDesktopApp(): boolean {
+  return isTauri();
+}
 
 export type RemoteSettingsDto = {
   enabled: boolean;
