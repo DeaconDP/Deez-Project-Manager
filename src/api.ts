@@ -357,6 +357,89 @@ export async function meshGetPat(): Promise<string | null> {
   return tauriInvoke<string | null>("mesh_get_pat");
 }
 
+export type OpenshipConfig = {
+  apiUrl: string;
+  dashboardUrl: string;
+  hasPat: boolean;
+  cliAvailable: boolean;
+  lastError: string | null;
+};
+
+export type OpenshipConfigPatch = {
+  apiUrl?: string;
+  dashboardUrl?: string;
+  clearLastError?: boolean;
+};
+
+export type OpenshipActionResult = {
+  ok: boolean;
+  message: string;
+  detail?: string | null;
+  lastBuildAt?: string | null;
+};
+
+export async function openshipGetConfig(): Promise<OpenshipConfig> {
+  if (!isTauri()) {
+    return {
+      apiUrl: "http://localhost:4000",
+      dashboardUrl: "http://localhost:3001",
+      hasPat: false,
+      cliAvailable: false,
+      lastError: null,
+    };
+  }
+  return tauriInvoke<OpenshipConfig>("openship_get_config");
+}
+
+export async function openshipSaveConfig(
+  patch: OpenshipConfigPatch,
+): Promise<OpenshipConfig> {
+  if (!isTauri()) remoteUnsupported("OpenShip settings");
+  return tauriInvoke<OpenshipConfig>("openship_save_config", { patch });
+}
+
+export async function openshipSetPat(secret: string): Promise<OpenshipConfig> {
+  if (!isTauri()) remoteUnsupported("OpenShip PAT");
+  return tauriInvoke<OpenshipConfig>("openship_set_pat", { secret });
+}
+
+export async function openshipClearPat(): Promise<OpenshipConfig> {
+  if (!isTauri()) remoteUnsupported("OpenShip PAT");
+  return tauriInvoke<OpenshipConfig>("openship_clear_pat");
+}
+
+export async function openshipShip(
+  projectId: string,
+  env: "preview" | "production",
+): Promise<OpenshipActionResult> {
+  if (!isTauri()) remoteUnsupported("OpenShip ship");
+  return tauriInvoke<OpenshipActionResult>("openship_ship", {
+    projectId,
+    env,
+  });
+}
+
+export async function openshipProjectStatus(
+  projectId: string,
+): Promise<OpenshipActionResult> {
+  if (!isTauri()) remoteUnsupported("OpenShip status");
+  return tauriInvoke<OpenshipActionResult>("openship_project_status", {
+    projectId,
+  });
+}
+
+export async function openshipCliStatus(): Promise<OpenshipActionResult> {
+  if (!isTauri()) remoteUnsupported("OpenShip CLI status");
+  return tauriInvoke<OpenshipActionResult>("openship_cli_status");
+}
+
+export async function updateLocalProject(
+  path: string,
+): Promise<OpenshipActionResult> {
+  if (!isTauri()) remoteUnsupported("Update Local");
+  return tauriInvoke<OpenshipActionResult>("update_local_project", { path });
+}
+
 export function isDesktopApp(): boolean {
   return isTauri();
 }

@@ -8,14 +8,17 @@ import {
   importVcc,
   openPath,
   openUnityProject,
+  onGitSyncUpdated,
+  openshipProjectStatus,
+  openshipShip,
   pickProjectFolder,
   pickProjectFolders,
-  onGitSyncUpdated,
   refreshGithubStatuses,
   removeSyncRoot,
   runProject,
   syncAllParentFolders,
   syncParentFolder,
+  updateLocalProject,
 } from "./api";
 import { ActionFeedback } from "./components/ActionFeedback";
 import { AppChrome } from "./components/AppChrome";
@@ -72,7 +75,10 @@ type ToolbarAction =
   | "add"
   | "sync"
   | "sync-manage";
-type RowBusy = { id: string; kind: "open" | "reveal" | "run" };
+type RowBusy = {
+  id: string;
+  kind: "open" | "reveal" | "run" | "ship" | "promote" | "updateLocal" | "opsStatus";
+};
 type AppTab = "projects" | "overview" | "processes" | "fuel" | "settings";
 type ProcessView = "cpu" | "network" | "usb" | "spikes";
 
@@ -487,6 +493,133 @@ function App() {
     setRowBusy(null);
   }
 
+  async function handleShipPreview(project: Project) {
+    const id = project.openshipProjectId?.trim();
+    if (!id) {
+      openAction.setFeedback({
+        kind: "error",
+        message: "Set OpenShip project id in Edit first.",
+      });
+      return;
+    }
+    setRowBusy({ id: project.id, kind: "ship" });
+    await openAction.run(
+      async () => {
+        const result = await openshipShip(id, "preview");
+        if (!result.ok) throw new Error(result.message);
+        return result.detail
+          ? { message: `${result.message} — ${result.detail}`, persist: true }
+          : result.message;
+      },
+      { loading: "Shipping Preview…" },
+    );
+    setRowBusy(null);
+  }
+
+  async function handlePromoteLive(project: Project) {
+    const id = project.openshipProjectId?.trim();
+    if (!id) {
+      openAction.setFeedback({
+        kind: "error",
+        message: "Set OpenShip project id in Edit first.",
+      });
+      return;
+    }
+    setRowBusy({ id: project.id, kind: "promote" });
+    await openAction.run(
+      async () => {
+        const result = await openshipShip(id, "production");
+        if (!result.ok) throw new Error(result.message);
+        return result.detail
+          ? { message: `${result.message} — ${result.detail}`, persist: true }
+          : result.message;
+      },
+      { loading: "Promoting Live…" },
+    );
+    setRowBusy(null);
+  }
+
+  async function handleUpdateLocal(project: Project) {
+    if (!project.localPath) {
+      openAction.setFeedback({
+        kind: "error",
+        message: "Set a local path before Update Local.",
+      });
+      return;
+    }
+    setRowBusy({ id: project.id, kind: "updateLocal" });
+    await openAction.run(
+      async () => {
+        const result = await updateLocalProject(project.localPath!);
+        if (!result.ok) throw new Error(result.message);
+        if (result.lastBuildAt) {
+          upsert({
+            ...project,
+            lastBuildAt: result.lastBuildAt,
+            updatedAt: new Date().toISOString(),
+          });
+        }
+        return { message: result.message, persist: true };
+      },
+      { loading: "Updating local…" },
+    );
+    setRowBusy(null);
+  }
+
+  async function handleOpsStatus(project: Project) {
+    const id = project.openshipProjectId?.trim();
+    if (!id) {
+      openAction.setFeedback({
+        kind: "error",
+        message: "Set OpenShip project id in Edit first.",
+      });
+      return;
+    }
+    setRowBusy({ id: project.id, kind: "opsStatus" });
+    await openAction.run(
+      async () => {
+        const result = await openshipProjectStatus(id);
+        if (!result.ok) throw new Error(result.message);
+        return {
+          message: result.detail
+            ? `${result.message}: ${result.detail.slice(0, 240)}`
+            : result.message,
+          persist: true,
+        };
+      },
+      { loading: "Fetching OpenShip status…" },
+    );
+    setRowBusy(null);
+  }
+
+  async function handleOpenPreviewUrl(project: Project) {
+    const url = project.previewUrl?.trim();
+    if (!url) return;
+    setRowBusy({ id: project.id, kind: "open" });
+    await openAction.run(
+      async () => {
+        const { openUrl } = await import("@tauri-apps/plugin-opener");
+        await openUrl(url);
+      },
+      { loading: "Opening Preview…", success: "Preview opened" },
+    );
+    setRowBusy(null);
+  }
+
+  async function handleOpenLiveUrl(project: Project) {
+    const url = project.liveUrl?.trim();
+    if (!url) return;
+    setRowBusy({ id: project.id, kind: "open" });
+    await openAction.run(
+      async () => {
+        const { openUrl } = await import("@tauri-apps/plugin-opener");
+        await openUrl(url);
+      },
+      { loading: "Opening Live…", success: "Live opened" },
+    );
+    setRowBusy(null);
+  }
+
   const handleArchiveRequest = useCallback((project: Project) => {
     setArchiveTarget(project);
   }, []);
@@ -514,12 +647,24 @@ function App() {
     run: handleRun,
     reveal: handleReveal,
     add: handleAddFolder,
+    ship: handleShipPreview,
+    promote: handlePromoteLive,
+    updateLocal: handleUpdateLocal,
+    opsStatus: handleOpsStatus,
+    previewUrl: handleOpenPreviewUrl,
+    liveUrl: handleOpenLiveUrl,
   });
   openHandlersRef.current = {
     open: handleOpen,
     run: handleRun,
     reveal: handleReveal,
     add: handleAddFolder,
+    ship: handleShipPreview,
+    promote: handlePromoteLive,
+    updateLocal: handleUpdateLocal,
+    opsStatus: handleOpsStatus,
+    previewUrl: handleOpenPreviewUrl,
+    liveUrl: handleOpenLiveUrl,
   };
 
   const onOpenProject = useCallback((p: Project) => {
@@ -530,6 +675,24 @@ function App() {
   }, []);
   const onRevealProject = useCallback((p: Project) => {
     void openHandlersRef.current.reveal(p);
+  }, []);
+  const onShipPreview = useCallback((p: Project) => {
+    void openHandlersRef.current.ship(p);
+  }, []);
+  const onPromoteLive = useCallback((p: Project) => {
+    void openHandlersRef.current.promote(p);
+  }, []);
+  const onUpdateLocal = useCallback((p: Project) => {
+    void openHandlersRef.current.updateLocal(p);
+  }, []);
+  const onOpsStatus = useCallback((p: Project) => {
+    void openHandlersRef.current.opsStatus(p);
+  }, []);
+  const onOpenPreviewUrl = useCallback((p: Project) => {
+    void openHandlersRef.current.previewUrl(p);
+  }, []);
+  const onOpenLiveUrl = useCallback((p: Project) => {
+    void openHandlersRef.current.liveUrl(p);
   }, []);
   const onAddFolder = useCallback(() => {
     void openHandlersRef.current.add();
@@ -773,6 +936,12 @@ function App() {
                     onEdit={setEditing}
                     onArchive={handleArchiveRequest}
                     onRestore={handleRestore}
+                    onShipPreview={onShipPreview}
+                    onPromoteLive={onPromoteLive}
+                    onUpdateLocal={onUpdateLocal}
+                    onOpsStatus={onOpsStatus}
+                    onOpenPreviewUrl={onOpenPreviewUrl}
+                    onOpenLiveUrl={onOpenLiveUrl}
                   />
                 )}
               </>

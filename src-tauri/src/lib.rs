@@ -5,6 +5,7 @@ mod mesh;
 mod metrics;
 mod models;
 mod net;
+mod openship;
 mod project_fs;
 mod scheduler;
 mod spikes;
@@ -30,6 +31,10 @@ use tauri_plugin_dialog::{DialogExt, FilePath};
 use types::{LatencyResult, MetricsSnapshot, SpikeEvent};
 use mesh::{
     mesh_clear_pat, mesh_get_config, mesh_get_pat, mesh_save_config, mesh_set_pat,
+};
+use openship::{
+    openship_clear_pat, openship_cli_status, openship_get_config, openship_project_status,
+    openship_save_config, openship_set_pat, openship_ship, update_local_project,
 };
 use usage::{
     fuel_clear_credential, fuel_connect, fuel_get_settings, fuel_get_snapshot, fuel_refresh,
@@ -241,6 +246,14 @@ fn import_github_repos(app: AppHandle, username: Option<String>) -> Result<Impor
             agency: None,
             client: None,
             year: None,
+            site_id: None,
+            openship_project_id: None,
+            preview_url: None,
+            live_url: None,
+            host: None,
+            sticky_port: None,
+            launch_cmd: None,
+            last_build_at: None,
             updated_at: now,
         });
         added += 1;
@@ -772,6 +785,14 @@ pub fn run() {
             mesh_set_pat,
             mesh_clear_pat,
             mesh_get_pat,
+            openship_get_config,
+            openship_save_config,
+            openship_set_pat,
+            openship_clear_pat,
+            openship_ship,
+            openship_project_status,
+            openship_cli_status,
+            update_local_project,
             remote::remote_get_info,
             remote::remote_qr_svg,
             remote::remote_save_settings,

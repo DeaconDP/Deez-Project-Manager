@@ -313,6 +313,14 @@ pub fn make_project_from_discovered(discovered: &DiscoveredProject, sort_index: 
         agency: None,
         client: None,
         year: None,
+        site_id: None,
+        openship_project_id: None,
+        preview_url: None,
+        live_url: None,
+        host: None,
+        sticky_port: None,
+        launch_cmd: None,
+        last_build_at: None,
         updated_at: now,
     };
     project_fs::apply_git_sync_info(&mut project, &sync);

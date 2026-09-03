@@ -111,6 +111,24 @@ pub struct Project {
     pub client: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub year: Option<i32>,
+    /// Shared fleet id (Deez-PM / OpenShip / site-ops).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub site_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub openship_project_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preview_url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub live_url: Option<String>,
+    /// Host label: ada / edgar / steve / luckey / woz / hermes / local.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub host: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sticky_port: Option<u16>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub launch_cmd: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_build_at: Option<String>,
     pub updated_at: String,
 }
 

@@ -53,7 +53,22 @@ export interface Project {
   agency?: string;
   client?: string;
   year?: number;
+  /** Shared fleet id across Deez-PM / OpenShip / site-ops. */
+  siteId?: string | null;
+  openshipProjectId?: string | null;
+  previewUrl?: string | null;
+  liveUrl?: string | null;
+  /** Host label: ada / edgar / steve / luckey / woz / hermes / local. */
+  host?: string | null;
+  stickyPort?: number | null;
+  launchCmd?: string | null;
+  lastBuildAt?: string | null;
   updatedAt: string;
+}
+
+/** Pilot / fleet row: has OpenShip id or shared siteId. */
+export function isFleetOpsRow(project: Pick<Project, "siteId" | "openshipProjectId">): boolean {
+  return !!(project.openshipProjectId?.trim() || project.siteId?.trim());
 }
 
 export interface GitSyncUpdated {
@@ -310,6 +325,14 @@ export function createEmptyProject(partial?: Partial<Project>): Project {
     notes: "",
     tools: [],
     hasRunScript: false,
+    siteId: null,
+    openshipProjectId: null,
+    previewUrl: null,
+    liveUrl: null,
+    host: null,
+    stickyPort: null,
+    launchCmd: null,
+    lastBuildAt: null,
     updatedAt: new Date().toISOString(),
     ...partial,
   };

@@ -1032,6 +1032,19 @@ button[aria-busy="true"]:disabled {
   color: var(--danger);
 }
 
+.row-overflow-sep {
+  height: 1px;
+  margin: 4px 8px;
+  background: color-mix(in srgb, currentColor 18%, transparent);
+  list-style: none;
+}
+
+.name-path-fleet {
+  display: block;
+  opacity: 0.7;
+  font-size: 0.78em;
+}
+
 .row-overflow-trigger {
   min-width: 36px;
   letter-spacing: 0.12em;
@@ -1878,6 +1891,14 @@ button[aria-busy="true"]:disabled {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.form-hint {
+  margin: 0;
+  font-size: 0.8rem;
+  opacity: 0.72;
+  line-height: 1.35;
+  color: var(--muted);
 }
 
 .form-section legend {

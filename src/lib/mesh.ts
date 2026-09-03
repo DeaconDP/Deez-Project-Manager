@@ -55,6 +55,9 @@ function stripLocalProject(p: Project): Project {
     gitBranch: null,
     gitDirty: false,
     hasRunScript: false,
+    lastBuildAt: null,
+    stickyPort: p.stickyPort ?? null,
+    launchCmd: null,
     // Keep githubStatus as remote-only when no local path on peers
     githubStatus:
       p.githubUrl || p.githubRepo ? ("remote-only" as const) : ("none" as const),
@@ -112,6 +115,9 @@ function restoreLocalPath(winner: Project, local?: Project): Project {
     gitDirty: local.gitDirty,
     hasRunScript: local.hasRunScript,
     githubStatus: local.githubStatus,
+    lastBuildAt: local.lastBuildAt ?? winner.lastBuildAt,
+    stickyPort: local.stickyPort ?? winner.stickyPort,
+    launchCmd: local.launchCmd ?? winner.launchCmd,
   };
 }
 

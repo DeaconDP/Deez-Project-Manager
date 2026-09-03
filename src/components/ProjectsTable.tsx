@@ -35,6 +35,7 @@ import {
   GITHUB_STATUS_SORT_RANK,
   githubStatusLabel,
   githubStatusTooltip,
+  isFleetOpsRow,
   normalizeCategory,
   normalizeStatus,
   statusClassSlug,
@@ -322,7 +323,15 @@ function ToolIcon({ tool }: { tool: string }) {
 interface RowProps {
   project: Project;
   busyId: string | null;
-  busyAction: "open" | "reveal" | "run" | null;
+  busyAction:
+    | "open"
+    | "reveal"
+    | "run"
+    | "ship"
+    | "promote"
+    | "updateLocal"
+    | "opsStatus"
+    | null;
   archivedView: boolean;
   /** First-paint enter only — not on header sort reorder. */
   animateEnter?: boolean;
@@ -339,6 +348,12 @@ interface RowProps {
   onEdit: (project: Project) => void;
   onArchive: (project: Project) => void;
   onRestore: (project: Project) => void;
+  onShipPreview?: (project: Project) => void;
+  onPromoteLive?: (project: Project) => void;
+  onUpdateLocal?: (project: Project) => void;
+  onOpsStatus?: (project: Project) => void;
+  onOpenPreviewUrl?: (project: Project) => void;
+  onOpenLiveUrl?: (project: Project) => void;
 }
 
 type OverflowMenuPos = {
@@ -352,6 +367,10 @@ function RowOverflowMenu({
   rowBusy,
   openBusy,
   revealBusy,
+  shipBusy,
+  promoteBusy,
+  updateBusy,
+  statusBusy,
   archivedView,
   compact,
   onOpen,
@@ -359,11 +378,21 @@ function RowOverflowMenu({
   onEdit,
   onArchive,
   onRestore,
+  onShipPreview,
+  onPromoteLive,
+  onUpdateLocal,
+  onOpsStatus,
+  onOpenPreviewUrl,
+  onOpenLiveUrl,
 }: {
   project: Project;
   rowBusy: boolean;
   openBusy: boolean;
   revealBusy: boolean;
+  shipBusy: boolean;
+  promoteBusy: boolean;
+  updateBusy: boolean;
+  statusBusy: boolean;
   archivedView: boolean;
   compact?: boolean;
   onOpen: (project: Project) => void;
@@ -371,6 +400,12 @@ function RowOverflowMenu({
   onEdit: (project: Project) => void;
   onArchive: (project: Project) => void;
   onRestore: (project: Project) => void;
+  onShipPreview?: (project: Project) => void;
+  onPromoteLive?: (project: Project) => void;
+  onUpdateLocal?: (project: Project) => void;
+  onOpsStatus?: (project: Project) => void;
+  onOpenPreviewUrl?: (project: Project) => void;
+  onOpenLiveUrl?: (project: Project) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [menuPos, setMenuPos] = useState<OverflowMenuPos | null>(null);
@@ -379,6 +414,7 @@ function RowOverflowMenu({
   const listRef = useRef<HTMLUListElement>(null);
   const menuId = useId();
   const btnClass = compact ? "btn-sm" : undefined;
+  const fleet = isFleetOpsRow(project);
 
   useLayoutEffect(() => {
     if (!open || !triggerRef.current) {
@@ -391,10 +427,10 @@ function RowOverflowMenu({
       if (!trigger) return;
       const rect = trigger.getBoundingClientRect();
       const gap = 4;
-      const estimatedHeight = 180;
+      const estimatedHeight = fleet ? 320 : 180;
       const spaceBelow = window.innerHeight - rect.bottom - gap;
       const openUp = spaceBelow < estimatedHeight && rect.top > spaceBelow;
-      const width = 160;
+      const width = 180;
       const left = Math.min(
         Math.max(8, rect.right - width),
         window.innerWidth - width - 8,
@@ -413,7 +449,7 @@ function RowOverflowMenu({
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", place, true);
     };
-  }, [open]);
+  }, [open, fleet]);
 
   useEffect(() => {
     if (!open) return;
@@ -490,6 +526,79 @@ function RowOverflowMenu({
                 {revealBusy ? "Revealing…" : "Reveal in file manager"}
               </button>
             </li>
+            {fleet ? (
+              <>
+                <li role="separator" className="row-overflow-sep" />
+                <li role="none">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={rowBusy || !project.openshipProjectId}
+                    aria-busy={shipBusy}
+                    onClick={() => run(() => onShipPreview?.(project))}
+                  >
+                    {shipBusy ? "Shipping…" : "Ship Preview"}
+                  </button>
+                </li>
+                <li role="none">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={rowBusy || !project.openshipProjectId}
+                    aria-busy={promoteBusy}
+                    onClick={() => run(() => onPromoteLive?.(project))}
+                  >
+                    {promoteBusy ? "Promoting…" : "Promote Live"}
+                  </button>
+                </li>
+                <li role="none">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={rowBusy || !project.localPath}
+                    aria-busy={updateBusy}
+                    onClick={() => run(() => onUpdateLocal?.(project))}
+                  >
+                    {updateBusy ? "Updating…" : "Update Local"}
+                  </button>
+                </li>
+                <li role="none">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={rowBusy || !project.openshipProjectId}
+                    aria-busy={statusBusy}
+                    onClick={() => run(() => onOpsStatus?.(project))}
+                  >
+                    {statusBusy ? "Loading…" : "OpenShip status"}
+                  </button>
+                </li>
+                {project.previewUrl ? (
+                  <li role="none">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      disabled={rowBusy}
+                      onClick={() => run(() => onOpenPreviewUrl?.(project))}
+                    >
+                      Open Preview URL
+                    </button>
+                  </li>
+                ) : null}
+                {project.liveUrl ? (
+                  <li role="none">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      disabled={rowBusy}
+                      onClick={() => run(() => onOpenLiveUrl?.(project))}
+                    >
+                      Open Live URL
+                    </button>
+                  </li>
+                ) : null}
+              </>
+            ) : null}
             <li role="none">
               <button
                 type="button"
@@ -558,6 +667,12 @@ function ProjectActions({
   onEdit,
   onArchive,
   onRestore,
+  onShipPreview,
+  onPromoteLive,
+  onUpdateLocal,
+  onOpsStatus,
+  onOpenPreviewUrl,
+  onOpenLiveUrl,
 }: Omit<
   RowProps,
   | "onToggleFavorite"
@@ -573,6 +688,10 @@ function ProjectActions({
   const openBusy = rowBusy && busyAction === "open";
   const runBusy = rowBusy && busyAction === "run";
   const revealBusy = rowBusy && busyAction === "reveal";
+  const shipBusy = rowBusy && busyAction === "ship";
+  const promoteBusy = rowBusy && busyAction === "promote";
+  const updateBusy = rowBusy && busyAction === "updateLocal";
+  const statusBusy = rowBusy && busyAction === "opsStatus";
   const btnClass = compact ? "btn-sm" : undefined;
   const canRun = !!project.localPath && project.hasRunScript;
 
@@ -622,6 +741,10 @@ function ProjectActions({
         rowBusy={rowBusy}
         openBusy={!!openBusy}
         revealBusy={!!revealBusy}
+        shipBusy={!!shipBusy}
+        promoteBusy={!!promoteBusy}
+        updateBusy={!!updateBusy}
+        statusBusy={!!statusBusy}
         archivedView={archivedView}
         compact={compact}
         onOpen={onOpen}
@@ -629,6 +752,12 @@ function ProjectActions({
         onEdit={onEdit}
         onArchive={onArchive}
         onRestore={onRestore}
+        onShipPreview={onShipPreview}
+        onPromoteLive={onPromoteLive}
+        onUpdateLocal={onUpdateLocal}
+        onOpsStatus={onOpsStatus}
+        onOpenPreviewUrl={onOpenPreviewUrl}
+        onOpenLiveUrl={onOpenLiveUrl}
       />
     </div>
   );
@@ -665,17 +794,47 @@ function EmptyValue() {
 }
 
 function NamePathLine({ project }: { project: Project }) {
+  const host = project.host?.trim();
+  const site = project.siteId?.trim();
+  const fleetHint =
+    host || site
+      ? [host, site, project.stickyPort ? `:${project.stickyPort}` : null]
+          .filter(Boolean)
+          .join(" · ")
+      : null;
+
   if (project.localPath) {
     return (
-      <span className="name-path" title={project.localPath}>
-        {shortenPath(project.localPath)}
-      </span>
+      <>
+        <span className="name-path" title={project.localPath}>
+          {shortenPath(project.localPath)}
+        </span>
+        {fleetHint ? (
+          <span className="name-path name-path-fleet" title={fleetHint}>
+            {fleetHint}
+          </span>
+        ) : null}
+      </>
     );
   }
   if (project.githubRepo) {
     return (
-      <span className="name-path name-path-repo" title={project.githubRepo}>
-        {project.githubRepo}
+      <>
+        <span className="name-path name-path-repo" title={project.githubRepo}>
+          {project.githubRepo}
+        </span>
+        {fleetHint ? (
+          <span className="name-path name-path-fleet" title={fleetHint}>
+            {fleetHint}
+          </span>
+        ) : null}
+      </>
+    );
+  }
+  if (fleetHint) {
+    return (
+      <span className="name-path name-path-fleet" title={fleetHint}>
+        {fleetHint}
       </span>
     );
   }
@@ -1012,6 +1171,12 @@ const ProjectRow = memo(function ProjectRow({
   onEdit,
   onArchive,
   onRestore,
+  onShipPreview,
+  onPromoteLive,
+  onUpdateLocal,
+  onOpsStatus,
+  onOpenPreviewUrl,
+  onOpenLiveUrl,
 }: RowProps & {
   isDragging?: boolean;
   dragHandleProps?: Record<string, unknown>;
@@ -1057,6 +1222,12 @@ const ProjectRow = memo(function ProjectRow({
             onEdit={onEdit}
             onArchive={onArchive}
             onRestore={onRestore}
+            onShipPreview={onShipPreview}
+            onPromoteLive={onPromoteLive}
+            onUpdateLocal={onUpdateLocal}
+            onOpsStatus={onOpsStatus}
+            onOpenPreviewUrl={onOpenPreviewUrl}
+            onOpenLiveUrl={onOpenLiveUrl}
           />
         }
       />
@@ -1159,7 +1330,15 @@ interface TableProps {
   projects: Project[];
   layout: UiLayout;
   busyId: string | null;
-  busyAction: "open" | "reveal" | "run" | null;
+  busyAction:
+    | "open"
+    | "reveal"
+    | "run"
+    | "ship"
+    | "promote"
+    | "updateLocal"
+    | "opsStatus"
+    | null;
   archivedView: boolean;
   emptyMessage?: string;
   emptyHint?: string;
@@ -1178,6 +1357,12 @@ interface TableProps {
   onEdit: (project: Project) => void;
   onArchive: (project: Project) => void;
   onRestore: (project: Project) => void;
+  onShipPreview?: (project: Project) => void;
+  onPromoteLive?: (project: Project) => void;
+  onUpdateLocal?: (project: Project) => void;
+  onOpsStatus?: (project: Project) => void;
+  onOpenPreviewUrl?: (project: Project) => void;
+  onOpenLiveUrl?: (project: Project) => void;
 }
 
 export function ProjectsTable({
@@ -1203,6 +1388,12 @@ export function ProjectsTable({
   onEdit,
   onArchive,
   onRestore,
+  onShipPreview,
+  onPromoteLive,
+  onUpdateLocal,
+  onOpsStatus,
+  onOpenPreviewUrl,
+  onOpenLiveUrl,
 }: TableProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overlayWidth, setOverlayWidth] = useState<number | undefined>();
@@ -1353,6 +1544,12 @@ export function ProjectsTable({
     onEdit,
     onArchive,
     onRestore,
+    onShipPreview,
+    onPromoteLive,
+    onUpdateLocal,
+    onOpsStatus,
+    onOpenPreviewUrl,
+    onOpenLiveUrl,
   };
 
   const table = (
