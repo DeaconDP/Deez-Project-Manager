@@ -110,6 +110,13 @@
 - [x] Optional shared-secret header on remote API (tailnet ACL still primary)
 - [x] Remote write: status / priority / kanban via existing `save_projects` path
 - [x] Settings peer list (MagicDNS names) + switch active node from phone
+- [x] Phone PWA chrome: hide desktop-only Import/Add/Sync/Open/Run/Reveal; soft-fail Settings without `/api`; safe-area insets
+
+## Native phone shell (Capacitor)
+
+- [x] Capacitor config `io.worldbuild.deez` + `ios/` + `android/` wrapping Vite `dist/`
+- [x] `npm run native:sync` / `native:ios` / `native:android` / `native:verify`
+- [ ] TestFlight / Play Store upload (signing: d@worldbuild.io)
 
 ## Fleet ops (OpenShip thin adapter)
 
@@ -122,3 +129,4 @@
 - [ ] Per site (deac-online / worldbuild / …): classify news & dynamic content as **in-repo** | **host-db/CMS** | **live-feed** | **external-CMS** — decides if Promote Live (`git` / `edgar`) is enough or a content-sync verb is needed
 - [ ] Wire deac-online pilot row against Ada OpenShip (needs Ada always-on + domain)
 - [ ] Rollback verb + site-ops health glance on the same row
+

@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { pickProjectFolder } from "../api";
+import { isDesktopApp, pickProjectFolder } from "../api";
 import {
   normalizeCategory,
   normalizeStatus,
@@ -21,6 +21,7 @@ interface Props {
 }
 
 export function ProjectEditModal({ project, open, onClose, onSave }: Props) {
+  const desktop = isDesktopApp();
   const titleId = useId();
   const pathErrorId = useId();
   const nameRef = useRef<HTMLInputElement>(null);
@@ -250,22 +251,24 @@ export function ProjectEditModal({ project, open, onClose, onSave }: Props) {
                     placeholder="/path/to/project"
                     aria-describedby={pathError ? pathErrorId : undefined}
                   />
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    disabled={pickingPath}
-                    aria-busy={pickingPath}
-                    onClick={() => void handlePickPath()}
-                  >
-                    {pickingPath ? (
-                      <span className="btn-busy-label">
-                        <Spinner size="sm" />
-                        …
-                      </span>
-                    ) : (
-                      "Browse…"
-                    )}
-                  </button>
+                  {desktop ? (
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      disabled={pickingPath}
+                      aria-busy={pickingPath}
+                      onClick={() => void handlePickPath()}
+                    >
+                      {pickingPath ? (
+                        <span className="btn-busy-label">
+                          <Spinner size="sm" />
+                          …
+                        </span>
+                      ) : (
+                        "Browse…"
+                      )}
+                    </button>
+                  ) : null}
                 </div>
                 {pathError ? (
                   <span id={pathErrorId} className="field-error" role="alert">

@@ -7,8 +7,33 @@ import type {
   SpikeEvent,
 } from "../types/metrics";
 
+const emptySnapshot: MetricsSnapshot = {
+  ts: "",
+  cpu: { usagePercent: 0, coreCount: 0, brand: "" },
+  memory: { totalBytes: 0, usedBytes: 0, usagePercent: 0 },
+  disks: [],
+  gpus: [],
+  temps: { cpuC: null, gpuC: null, zones: [], notes: [] },
+  processes: [],
+  wifi: null,
+  hostNet: {
+    recvBps: 0,
+    sentBps: 0,
+    totalRecvBytes: 0,
+    totalSentBytes: 0,
+  },
+  netProcesses: [],
+};
+
 export async function fetchSnapshot(): Promise<MetricsSnapshot> {
-  if (!isTauri()) return remoteFetch<MetricsSnapshot>("/api/metrics");
+  if (!isTauri()) {
+    try {
+      return await remoteFetch<MetricsSnapshot>("/api/metrics");
+    } catch {
+      // Mesh-only PWA has no live Ada host.
+      return emptySnapshot;
+    }
+  }
   return invoke<MetricsSnapshot>("get_snapshot");
 }
 

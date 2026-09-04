@@ -473,7 +473,22 @@ export type RemoteInfoDto = {
 };
 
 export async function remoteGetInfo(): Promise<RemoteInfoDto> {
-  if (!isTauri()) return remoteFetch<RemoteInfoDto>("/api/info");
+  if (!isTauri()) {
+    const body = await remoteFetch<{
+      settings: RemoteSettingsDto;
+      tailscale: TailscaleInfoDto;
+      status?: RemoteStatusDto;
+      url?: string | null;
+      staticDir?: string | null;
+    }>("/api/info");
+    return {
+      settings: body.settings,
+      status: body.status ?? { running: true, bind: null, lastError: null },
+      tailscale: body.tailscale,
+      url: body.url ?? null,
+      staticDir: body.staticDir ?? null,
+    };
+  }
   return tauriInvoke<RemoteInfoDto>("remote_get_info");
 }
 

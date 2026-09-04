@@ -113,11 +113,12 @@ Portfolio project dashboard (Tauri) replacing day-to-day Unity Hub / VCC list us
 **Job:** open the live node (projects + Ada glance) from an iPhone on the same Tailscale tailnet — not a second product, not a public SaaS.
 
 **Poteto verdict (do this, refuse the rest):**
-1. Ship a **PWA URL over Tailscale** first. No App Store / Expo / Tauri-iOS until the PWA proves the job.
-2. Each desktop Deez instance is a **node**. Networking = Tailscale MagicDNS + HTTP bound to the tailnet IP only (never Funnel / public bind for v1).
-3. One thin local HTTP surface inside the running Tauri app: static `dist/` + JSON that mirrors the existing invoke commands we actually need remote. Dual `api.ts` (Tauri IPC vs `fetch`).
-4. Multi-node = **switch MagicDNS host** (bookmark peers). No central coordinator, no CRDT mesh, no custom VPN.
-5. Keep gist/repo **Sync** epic separate: that is offline metadata replica; Tailscale is live remote UI into a node’s store + metrics.
+1. **PWA URL over Tailscale** is the primary phone path (proved).
+2. **Native is optional** via a Capacitor shell around the same Vite `dist/` (`io.worldbuild.deez`). Same React UI / browser runtime. No React Native rewrite, no Tauri-mobile Rust port.
+3. Each desktop Deez instance is a **node**. Networking = Tailscale MagicDNS + HTTP bound to the tailnet IP only (never Funnel / public bind for v1).
+4. One thin local HTTP surface inside the running Tauri app: static `dist/` + JSON that mirrors the existing invoke commands we actually need remote. Dual `api.ts` (Tauri IPC vs `fetch`).
+5. Multi-node = **switch MagicDNS host** (bookmark peers). No central coordinator, no CRDT mesh, no custom VPN.
+6. Keep gist/repo **Sync** epic separate: that is offline metadata replica; Tailscale is live remote UI into a node’s store + metrics.
 
 **Slices (in order):**
 - [x] Settings: detect Tailscale IPv4 / MagicDNS hostname; sticky remote port; copy URL + QR for phone
@@ -127,10 +128,14 @@ Portfolio project dashboard (Tauri) replacing day-to-day Unity Hub / VCC list us
 - [x] Optional shared secret header (belt on top of tailnet ACL); never commit tokens
 - [x] Write-path remote: status / priority / kanban edits that already save through `save_projects`
 - [x] Peer list in Settings (paste MagicDNS names); one-tap switch which node the phone is talking to
+- [x] Phone chrome cull: browser/PWA hides host-only Import/Add/Sync/Open/Run/Reveal/Browse; Settings soft-fails without live `/api`
+- [x] Capacitor native shell (`capacitor.config.ts`, `ios/`, `android/`, `npm run native:*`) wrapping the same `dist/`
 - [ ] Later only if needed: remote “Run / Open on host” with explicit confirm — not in first phone cut
+- [ ] TestFlight / Play upload — signing via Apple team **d@worldbuild.io**; not automated in this repo yet
 
 **Non-goals (explicit):**
-- Native iOS app, TestFlight, or App Store listing before PWA
+- React Native / Expo rewrite of the UI
+- Tauri-mobile port of the Rust host into the phone binary
 - Tailscale Funnel / public internet exposure
 - Replacing local-first store with a cloud DB
 - Per-packet sync protocol between nodes (use Sync epic / gist if offline replica is the real need)
@@ -164,7 +169,7 @@ Portfolio project dashboard (Tauri) replacing day-to-day Unity Hub / VCC list us
 - 2026-07-16: Process-list virtualization / gauge CSS redesign during lightening pass — not needed at current load; runtime wins were isolate + idle pace + USB gate (`src/App.tsx`, `src-tauri/src/scheduler.rs`).
 - 2026-07-16: Kanban custom columns / WIP limits / comment edit-delete — v1 is fixed columns with append-only comments (`src/components/KanbanBoard.tsx`).
 - 2026-07-16: Rename project-table Priority “Default” → “Opt” — board tasks only; projects keep Default (`src/types.ts`).
-- 2026-09-02: Native iOS / Expo / Tauri-mobile shell — poteto: PWA over Tailscale first; revisit only if Home Screen PWA fails a real phone job (`ROADMAP.md` Tailscale mesh epic).
+- 2026-09-04: Native iOS / Expo / Tauri-mobile rewrite — superseded by Capacitor shell around existing `dist/` (`capacitor.config.ts`, `ios/`, `android/`). TestFlight upload still open (signing: d@worldbuild.io).
 - 2026-09-02: Tailscale Funnel / public bind for remote HTTP — stay on tailnet-only bind + MagicDNS; Funnel is a separate threat model (`ROADMAP.md` Tailscale mesh epic).
 - 2026-09-02: Custom multi-node sync protocol / CRDT over Tailscale — live UI is host-authoritative; offline replica stays Sync (gist/repo) epic (`src-tauri/src/store.rs`).
 - 2026-09-02: Phone-side Fuel credential entry or secret-store proxy — credentials stay on the host node (`src-tauri/src/usage/credentials.rs`).

@@ -6,6 +6,7 @@ import {
   importLocalFolders,
   importUnityHub,
   importVcc,
+  isDesktopApp,
   openPath,
   openUnityProject,
   onGitSyncUpdated,
@@ -108,6 +109,7 @@ const APP_TABS: { id: AppTab; label: string }[] = [
 
 
 function App() {
+  const desktop = isDesktopApp();
   const {
     projects,
     tasks,
@@ -744,7 +746,11 @@ function App() {
 
   return (
     <MetricsChromeProvider preferSlow={tab === "projects"}>
-    <div className="app-shell" data-layout={layout}>
+    <div
+      className="app-shell"
+      data-layout={layout}
+      data-runtime={desktop ? "desktop" : "browser"}
+    >
         <AppChrome
           title={appTitle}
           onTitleChange={setAppTitle}
@@ -758,8 +764,16 @@ function App() {
                 onClick={() => void handleRefreshStatuses()}
                 disabled={toolbar.busy}
                 aria-busy={toolbarAction === "refresh"}
-                aria-label="Refresh git statuses"
-                title="Refresh git statuses (then fetch remotes in background)"
+                aria-label={
+                  desktop
+                    ? "Refresh git statuses"
+                    : "Reload projects"
+                }
+                title={
+                  desktop
+                    ? "Refresh git statuses (then fetch remotes in background)"
+                    : "Reload projects from mesh / live node"
+                }
               >
                 {toolbarAction === "refresh" ? <Spinner size="sm" /> : "↻"}
               </button>
@@ -900,58 +914,63 @@ function App() {
                           All hosts
                         </button>
                       </div>
-                      <SyncMenu
-                        roots={syncRoots}
-                        busy={toolbar.busy}
-                        syncing={toolbarAction === "sync"}
-                        disabled={toolbar.busy}
-                        onSyncAll={() => void handleSyncAllParents()}
-                        onSync={(path) => void handleSyncParent(path)}
-                        onAddRoot={() => void handleAddSyncRoot()}
-                        onRemoveRoot={(path) =>
-                          void handleRemoveSyncRoot(path)
-                        }
-                      />
-                      <ImportMenu
-                        busy={toolbar.busy}
-                        busyKind={importBusy}
-                        disabled={toolbar.busy}
-                        onImportHub={() => void handleImportUnityHub()}
-                        onImportVcc={() => void handleImportVcc()}
-                        onImportGithub={() => void handleImportGithub()}
-                      />
-                      <button
-                        type="button"
-                        className="btn-secondary"
-                        disabled={toolbar.busy}
-                        aria-busy={toolbarAction === "prune"}
-                        onClick={() => void handleRefreshFolders()}
-                      >
-                        {toolbarAction === "prune" ? (
-                          <span className="btn-busy-label">
-                            <Spinner size="sm" />
-                            Refreshing…
-                          </span>
-                        ) : (
-                          "Refresh"
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-primary toolbar-add"
-                        disabled={toolbar.busy}
-                        aria-busy={toolbarAction === "add"}
-                        onClick={() => void handleAddFolder()}
-                      >
-                        {toolbarAction === "add" ? (
-                          <span className="btn-busy-label">
-                            <Spinner size="sm" />
-                            Adding…
-                          </span>
-                        ) : (
-                          "+ Add project"
-                        )}
-                      </button>
+                      {desktop ? (
+                        <>
+                          <SyncMenu
+                            roots={syncRoots}
+                            busy={toolbar.busy}
+                            syncing={toolbarAction === "sync"}
+                            disabled={toolbar.busy}
+                            onSyncAll={() => void handleSyncAllParents()}
+                            onSync={(path) => void handleSyncParent(path)}
+                            onAddRoot={() => void handleAddSyncRoot()}
+                            onRemoveRoot={(path) =>
+                              void handleRemoveSyncRoot(path)
+                            }
+                          />
+                          <ImportMenu
+                            busy={toolbar.busy}
+                            busyKind={importBusy}
+                            disabled={toolbar.busy}
+                            onImportHub={() => void handleImportUnityHub()}
+                            onImportVcc={() => void handleImportVcc()}
+                            onImportGithub={() => void handleImportGithub()}
+                          />
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            disabled={toolbar.busy}
+                            aria-busy={toolbarAction === "prune"}
+                            onClick={() => void handleRefreshFolders()}
+                          >
+                            {toolbarAction === "prune" ? (
+                              <span className="btn-busy-label">
+                                <Spinner size="sm" />
+                                Refreshing…
+                              </span>
+                            ) : (
+                              "Refresh"
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-primary toolbar-add"
+                            disabled={toolbar.busy}
+                            aria-busy={toolbarAction === "add"}
+                            onClick={() => void handleAddFolder()}
+                          >
+                            {toolbarAction === "add" ? (
+                              <span className="btn-busy-label">
+                                <Spinner size="sm" />
+                                Adding…
+                              </span>
+                            ) : (
+                              "+ Add project"
+                            )}
+                          </button>
+                        </>
+                      ) : null}
+
                     </div>
                   </div>
                 </header>
@@ -1000,11 +1019,17 @@ function App() {
                     emptyHint={
                       listView === "archive"
                         ? "Archived projects appear here and can be restored anytime."
-                        : hostScope === "this"
-                          ? "This machine only lists its own inventory. Switch Tailscale peer in Settings, or choose All hosts for pathless stamps from other boxes."
-                          : "Add a local folder, Sync a parent, or import from Hub, VCC, or GitHub."
+                        : !desktop
+                          ? "Join the gist mesh or open a Tailscale live node URL to see projects here."
+                          : hostScope === "this"
+                            ? "This machine only lists its own inventory. Switch Tailscale peer in Settings, or choose All hosts for pathless stamps from other boxes."
+                            : "Add a local folder, Sync a parent, or import from Hub, VCC, or GitHub."
                     }
-                    onAdd={listView === "active" ? onAddFolder : undefined}
+                    onAdd={
+                      desktop && listView === "active"
+                        ? onAddFolder
+                        : undefined
+                    }
                     addBusy={toolbarAction === "add"}
                     addDisabled={toolbar.busy}
                     onReorder={reorder}
@@ -1013,9 +1038,9 @@ function App() {
                     onCategoryChange={setCategory}
                     onStatusChange={setStatus}
                     onOpenBoard={onOpenBoard}
-                    onOpen={onOpenProject}
-                    onRun={onRunProject}
-                    onReveal={onRevealProject}
+                    onOpen={desktop ? onOpenProject : undefined}
+                    onRun={desktop ? onRunProject : undefined}
+                    onReveal={desktop ? onRevealProject : undefined}
                     onEdit={setEditing}
                     onArchive={handleArchiveRequest}
                     onRestore={handleRestore}

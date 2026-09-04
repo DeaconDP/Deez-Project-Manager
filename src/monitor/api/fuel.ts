@@ -1,10 +1,20 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { isTauri, remoteFetch, remoteUnsupported } from "../../lib/runtime";
-import type { FuelSettings, RefreshResult } from "../types/usage";
+import {
+  defaultFuelSettings,
+  type FuelSettings,
+  type RefreshResult,
+} from "../types/usage";
 
 export async function getFuelSettings(): Promise<FuelSettings> {
-  if (!isTauri()) return remoteFetch<FuelSettings>("/api/fuel/settings");
+  if (!isTauri()) {
+    try {
+      return await remoteFetch<FuelSettings>("/api/fuel/settings");
+    } catch {
+      return defaultFuelSettings();
+    }
+  }
   return invoke<FuelSettings>("fuel_get_settings");
 }
 
@@ -18,8 +28,14 @@ export async function refreshFuel(): Promise<RefreshResult> {
   return invoke<RefreshResult>("fuel_refresh");
 }
 
-export async function getFuelSnapshot(): Promise<RefreshResult> {
-  if (!isTauri()) return remoteFetch<RefreshResult>("/api/fuel");
+export async function getFuelSnapshot(): Promise<RefreshResult | null> {
+  if (!isTauri()) {
+    try {
+      return await remoteFetch<RefreshResult>("/api/fuel");
+    } catch {
+      return null;
+    }
+  }
   return invoke<RefreshResult>("fuel_get_snapshot");
 }
 
@@ -31,7 +47,8 @@ export async function onFuelSnapshot(
     const tick = async () => {
       if (cancelled) return;
       try {
-        handler(await getFuelSnapshot());
+        const next = await getFuelSnapshot();
+        if (next) handler(next);
       } catch {
         /* host offline */
       }
