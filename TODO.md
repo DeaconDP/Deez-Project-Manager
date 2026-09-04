@@ -117,5 +117,6 @@
 - [x] Settings → OpenShip: API URL + PAT (credential store) + CLI status
 - [x] Row overflow (fleet rows only): Ship Preview · Promote Live · Update Local · OpenShip status · open URLs
 - [x] `scripts/dale-auto-rebuild.sh` shared helper contract
+- [x] Per-host inventory: stamp `host`, default **This host** filter, mesh keeps sticky path/port local (Ada ≠ Edgar)
 - [ ] Wire deac-online pilot row against Ada OpenShip (needs Ada always-on + domain)
 - [ ] Rollback verb + site-ops health glance on the same row

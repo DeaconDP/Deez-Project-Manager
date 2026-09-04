@@ -43,6 +43,11 @@ import {
   MetricsLiveSlot,
 } from "./monitor/components/MetricsChrome";
 import type { Project, ProjectStore } from "./types";
+import {
+  projectOnThisHost,
+  withHostStamp,
+} from "./types";
+import { defaultDeviceName } from "./lib/mesh";
 import "./App.css";
 import "./monitor/monitor.css";
 
@@ -81,6 +86,17 @@ type RowBusy = {
 };
 type AppTab = "projects" | "overview" | "processes" | "fuel" | "settings";
 type ProcessView = "cpu" | "network" | "usb" | "spikes";
+type HostScope = "this" | "all";
+
+const HOST_SCOPE_KEY = "deez-host-scope";
+
+function readHostScope(): HostScope {
+  try {
+    return localStorage.getItem(HOST_SCOPE_KEY) === "all" ? "all" : "this";
+  } catch {
+    return "this";
+  }
+}
 
 const APP_TABS: { id: AppTab; label: string }[] = [
   { id: "projects", label: "Projects" },
@@ -151,6 +167,7 @@ function App() {
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<Project | null>(null);
   const [listView, setListView] = useState<"active" | "archive">("active");
+  const [hostScope, setHostScope] = useState<HostScope>(() => readHostScope());
   const [archiveTarget, setArchiveTarget] = useState<Project | null>(null);
   const [boardProjectId, setBoardProjectId] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -181,13 +198,19 @@ function App() {
     [boardProjectId, projects],
   );
 
+  const thisHost =
+    mesh.config?.deviceName?.trim() || defaultDeviceName();
+
   const filtered = useMemo(() => {
-    const byArchive = projects.filter((p) =>
+    let list = projects.filter((p) =>
       listView === "archive" ? p.archived : !p.archived,
     );
+    if (hostScope === "this") {
+      list = list.filter((p) => projectOnThisHost(p, thisHost));
+    }
     const q = search.trim().toLowerCase();
-    if (!q) return byArchive;
-    return byArchive.filter((p) => {
+    if (!q) return list;
+    return list.filter((p) => {
       const hay = [
         p.name,
         p.platform,
@@ -198,12 +221,26 @@ function App() {
         p.priority,
         p.agency ?? "",
         p.client ?? "",
+        p.host ?? "",
+        p.siteId ?? "",
       ]
         .join(" ")
         .toLowerCase();
       return hay.includes(q);
     });
-  }, [projects, search, listView]);
+  }, [projects, search, listView, hostScope, thisHost]);
+
+  // Stamp owning host onto local-path rows that still lack one.
+  useEffect(() => {
+    if (loading) return;
+    let changed = false;
+    const next = projects.map((p) => {
+      const stamped = withHostStamp(p, thisHost);
+      if (stamped !== p && stamped.host !== p.host) changed = true;
+      return stamped;
+    });
+    if (changed) replaceAll(next);
+  }, [loading, thisHost]); // eslint-disable-line react-hooks/exhaustive-deps -- one-shot heal per host label
 
   const archivedCount = useMemo(
     () => projects.filter((p) => p.archived).length,
@@ -821,6 +858,48 @@ function App() {
                         archivedCount={archivedCount}
                         onChange={setListView}
                       />
+                      <div
+                        className="host-scope"
+                        role="group"
+                        aria-label="Host inventory"
+                      >
+                        <button
+                          type="button"
+                          className={`btn-secondary host-scope__btn${
+                            hostScope === "this" ? " is-active" : ""
+                          }`}
+                          aria-pressed={hostScope === "this"}
+                          title={`Show projects on this machine (${thisHost})`}
+                          onClick={() => {
+                            setHostScope("this");
+                            try {
+                              localStorage.setItem(HOST_SCOPE_KEY, "this");
+                            } catch {
+                              /* ignore */
+                            }
+                          }}
+                        >
+                          This host
+                        </button>
+                        <button
+                          type="button"
+                          className={`btn-secondary host-scope__btn${
+                            hostScope === "all" ? " is-active" : ""
+                          }`}
+                          aria-pressed={hostScope === "all"}
+                          title="Show every host stamp (Update Local only works where the path lives)"
+                          onClick={() => {
+                            setHostScope("all");
+                            try {
+                              localStorage.setItem(HOST_SCOPE_KEY, "all");
+                            } catch {
+                              /* ignore */
+                            }
+                          }}
+                        >
+                          All hosts
+                        </button>
+                      </div>
                       <SyncMenu
                         roots={syncRoots}
                         busy={toolbar.busy}
@@ -914,12 +993,16 @@ function App() {
                     emptyMessage={
                       listView === "archive"
                         ? "No archived projects."
-                        : "No projects yet."
+                        : hostScope === "this"
+                          ? "No projects on this host."
+                          : "No projects yet."
                     }
                     emptyHint={
                       listView === "archive"
                         ? "Archived projects appear here and can be restored anytime."
-                        : "Add a local folder, Sync a parent, or import from Hub, VCC, or GitHub."
+                        : hostScope === "this"
+                          ? "This machine only lists its own inventory. Switch Tailscale peer in Settings, or choose All hosts for pathless stamps from other boxes."
+                          : "Add a local folder, Sync a parent, or import from Hub, VCC, or GitHub."
                     }
                     onAdd={listView === "active" ? onAddFolder : undefined}
                     addBusy={toolbarAction === "add"}

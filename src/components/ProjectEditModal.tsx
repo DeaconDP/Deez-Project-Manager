@@ -306,7 +306,8 @@ export function ProjectEditModal({ project, open, onClose, onSave }: Props) {
               <legend>Fleet / OpenShip</legend>
               <p className="form-hint">
                 Pilot registry for Ship Preview · Promote Live · Update Local.
-                Leave blank for normal projects.
+                Each computer hosts different projects — set Host to the owning
+                machine (ada / edgar / …). Leave blank for normal backlog rows.
               </p>
               <div className="form-row">
                 <label>
@@ -328,6 +329,10 @@ export function ProjectEditModal({ project, open, onClose, onSave }: Props) {
                     }
                     placeholder="ada"
                   />
+                  <span className="form-hint">
+                    Owning machine — each host has different projects. Update
+                    Local only runs on that box.
+                  </span>
                 </label>
                 <label>
                   Sticky port

@@ -574,6 +574,31 @@ button[aria-busy="true"]:disabled {
   flex-wrap: wrap;
 }
 
+.host-scope {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.host-scope__btn {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  min-height: 36px;
+  padding-inline: 0.7rem;
+}
+
+.host-scope__btn + .host-scope__btn {
+  border-left: 1px solid var(--border) !important;
+}
+
+.host-scope__btn.is-active {
+  background: color-mix(in srgb, var(--accent, #3dd6c6) 22%, transparent);
+  color: var(--text);
+}
+
 .zoom-controls {
   display: inline-flex;
   align-items: stretch;

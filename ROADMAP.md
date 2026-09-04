@@ -21,10 +21,12 @@ Portfolio project dashboard (Tauri) replacing day-to-day Unity Hub / VCC list us
 
 **North star:** one place to administer, monitor, and orchestrate Dale’s local/git projects across Ada / Edgar / Steve / Luckey / Woz / Hermes — without opening OpenShip UI, site-ops dashboards, or per-app Dock binaries for happy-path ops.
 
+**Host ownership (hard rule):** each computer hosts a **different** project inventory. Ada ≠ Edgar ≠ Steve. A live Deez node only runs **Update Local / Run / sticky rebuild** for rows that live on that machine. Cross-host glance = **switch Tailscale MagicDNS peer** (or “All hosts” list filter for pathless stamps) — not one mirrored catalog of every sticky site on every box.
+
 **Three verbs (thin backends):**
 | Verb | Means | Backend |
 |--|--|--|
-| Administer | Registry: path, host, port, repo, URLs, launch | Deez-PM itself |
+| Administer | Registry: path, **owning host**, port, repo, URLs, launch | Deez-PM itself (per-host store) |
 | Monitor | git behind, last build, Preview/Live, health | site-ops sensors + OpenShip status + local helper |
 | Orchestrate | Update Local · Ship Preview · Promote Live · Rollback · Open URL | `dale-auto-rebuild` / Dock · OpenShip CLI/API |
 
@@ -33,10 +35,11 @@ Portfolio project dashboard (Tauri) replacing day-to-day Unity Hub / VCC list us
 - [x] Deez-PM thin OpenShip adapter: Settings PAT/API + project fleet fields + row Ship Preview / Promote Live / status
 - [x] Same row: **Update Local** (fetch/pull + `dale-auto-rebuild` / `run.* --rebuild`)
 - [x] Shared `scripts/dale-auto-rebuild.sh` helper contract for Dock/`run.command`
+- [x] Per-host inventory: stamp `host`, default table = **This host**, mesh keeps sticky path/port local
 - [ ] Pilot green on **deac-online** against live Ada OpenShip
 - [ ] Fleet cutover of more rows (only after pilot)
 
-**Non-goals:** second control-plane UI · GitHub Actions rebuilds · rebuild-on-every-save · Hermes Desktop replacement
+**Non-goals:** second control-plane UI · GitHub Actions rebuilds · rebuild-on-every-save · Hermes Desktop replacement · federated “union all hosts into one live table” (peer switch is enough)
 
 ### Learn & Tools
 - ~~Re-introduce Learn / Tools nav when content exists~~ — superseded by Projects / Overview / Processes / Fuel / Settings tabs (`src/App.tsx`)
