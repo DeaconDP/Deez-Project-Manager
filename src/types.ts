@@ -4,6 +4,7 @@ export type Platform =
   | "Unity"
   | "Unreal"
   | "Web"
+  | "Native"
   | "Viverse"
   | "Consulting"
   | "Other";
@@ -53,7 +54,82 @@ export interface Project {
   agency?: string;
   client?: string;
   year?: number;
+  /**
+   * Product family id (emily / deac-online / …).
+   * Shared across many rows when one product has a site + apps (or several apps).
+   */
+  siteId?: string | null;
+  openshipProjectId?: string | null;
+  previewUrl?: string | null;
+  liveUrl?: string | null;
+  /**
+   * Owning machine label (ada / edgar / steve / …).
+   * Each host owns different projects — not a mirrored fleet catalog.
+   */
+  host?: string | null;
+  /**
+   * Which face of the product this row is (ios / android / site / editor / pwa / …).
+   * One row = one surface; ops verbs act per surface.
+   */
+  surface?: string | null;
+  /** Sticky localhost port on the owning host only (not mesh-shared). */
+  stickyPort?: number | null;
+  /** Launch / rebuild hint on the owning host only (not mesh-shared). */
+  launchCmd?: string | null;
+  lastBuildAt?: string | null;
   updatedAt: string;
+}
+
+/** Pilot / fleet row: has OpenShip id or shared siteId. */
+export function isFleetOpsRow(
+  project: Pick<Project, "siteId" | "openshipProjectId">,
+): boolean {
+  return !!(project.openshipProjectId?.trim() || project.siteId?.trim());
+}
+
+export function normalizeHostLabel(
+  raw: string | null | undefined,
+): string {
+  const s = (raw ?? "").trim().toLowerCase();
+  if (!s) return "";
+  // "Linux · ada" / "Mac · Edgar" → prefer the trailing machine token
+  const parts = s
+    .split(/[·•|/]+/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  const token = parts.length > 1 ? parts[parts.length - 1]! : parts[0]!;
+  return token.replace(/[\s_]+/g, "-");
+}
+
+/** Stamp owning host when this machine has a local path. */
+export function withHostStamp(
+  project: Project,
+  thisHost: string,
+): Project {
+  if (!project.localPath?.trim()) return project;
+  if (project.host?.trim()) return project;
+  const stamp = normalizeHostLabel(thisHost);
+  if (!stamp) return project;
+  return { ...project, host: stamp };
+}
+
+/**
+ * Does this row belong on the current machine's default list?
+ * - Has a local path here → yes (this box hosts it)
+ * - `host` matches this machine → yes
+ * - Pathless fleet row stamped for another host → no (switch peer / All hosts)
+ * - Pathless unstamped backlog → yes (shared interest list, not fleet ops)
+ */
+export function projectOnThisHost(
+  project: Project,
+  thisHost: string,
+): boolean {
+  if (project.localPath?.trim()) return true;
+  const mine = normalizeHostLabel(thisHost);
+  const stamped = normalizeHostLabel(project.host);
+  if (stamped) return stamped === mine;
+  if (isFleetOpsRow(project)) return false;
+  return true;
 }
 
 export interface GitSyncUpdated {
@@ -220,6 +296,7 @@ export const PLATFORMS: Platform[] = [
   "Unity",
   "Unreal",
   "Web",
+  "Native",
   "Viverse",
   "Consulting",
   "Other",
@@ -310,6 +387,15 @@ export function createEmptyProject(partial?: Partial<Project>): Project {
     notes: "",
     tools: [],
     hasRunScript: false,
+    siteId: null,
+    openshipProjectId: null,
+    previewUrl: null,
+    liveUrl: null,
+    host: null,
+    surface: null,
+    stickyPort: null,
+    launchCmd: null,
+    lastBuildAt: null,
     updatedAt: new Date().toISOString(),
     ...partial,
   };

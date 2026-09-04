@@ -3,11 +3,17 @@ import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import {
   getRemoteBase,
   isDesktopApp,
+  openshipClearPat,
+  openshipCliStatus,
+  openshipGetConfig,
+  openshipSaveConfig,
+  openshipSetPat,
   rememberBrowserToken,
   remoteGetInfo,
   remoteQrSvg,
   remoteSaveSettings,
   setRemoteBase,
+  type OpenshipConfig,
   type RemoteInfoDto,
 } from "../../api";
 import type { MeshConfig } from "../../lib/mesh";
@@ -57,6 +63,13 @@ export function SettingsPanel({ mesh }: Props) {
   const [meshBusy, setMeshBusy] = useState<
     null | "pat" | "save" | "sync" | "clear"
   >(null);
+  const [openship, setOpenship] = useState<OpenshipConfig | null>(null);
+  const [openshipApiDraft, setOpenshipApiDraft] = useState("");
+  const [openshipDashDraft, setOpenshipDashDraft] = useState("");
+  const [openshipPatDraft, setOpenshipPatDraft] = useState("");
+  const [openshipBusy, setOpenshipBusy] = useState<
+    null | "save" | "pat" | "clear" | "status"
+  >(null);
 
   useEffect(() => {
     if (mesh.config) {
@@ -64,6 +77,99 @@ export function SettingsPanel({ mesh }: Props) {
       setNameDraft(mesh.config.deviceName);
     }
   }, [mesh.config]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      if (!desktop) return;
+      try {
+        const cfg = await openshipGetConfig();
+        if (cancelled) return;
+        setOpenship(cfg);
+        setOpenshipApiDraft(cfg.apiUrl);
+        setOpenshipDashDraft(cfg.dashboardUrl);
+      } catch {
+        /* ignore until desktop ready */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [desktop]);
+
+  async function saveOpenshipUrls() {
+    setOpenshipBusy("save");
+    setError(null);
+    try {
+      const cfg = await openshipSaveConfig({
+        apiUrl: openshipApiDraft,
+        dashboardUrl: openshipDashDraft,
+      });
+      setOpenship(cfg);
+      setFeedback("OpenShip URLs saved");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setOpenshipBusy(null);
+    }
+  }
+
+  async function saveOpenshipPat() {
+    if (!openshipPatDraft.trim()) return;
+    setOpenshipBusy("pat");
+    setError(null);
+    try {
+      await openshipSaveConfig({
+        apiUrl: openshipApiDraft,
+        dashboardUrl: openshipDashDraft,
+      });
+      const cfg = await openshipSetPat(openshipPatDraft.trim());
+      setOpenship(cfg);
+      setOpenshipPatDraft("");
+      setFeedback(
+        cfg.lastError
+          ? `PAT saved — CLI login: ${cfg.lastError}`
+          : "OpenShip PAT saved",
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setOpenshipBusy(null);
+    }
+  }
+
+  async function clearOpenshipPat() {
+    setOpenshipBusy("clear");
+    setError(null);
+    try {
+      const cfg = await openshipClearPat();
+      setOpenship(cfg);
+      setFeedback("OpenShip PAT cleared");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setOpenshipBusy(null);
+    }
+  }
+
+  async function checkOpenshipCli() {
+    setOpenshipBusy("status");
+    setError(null);
+    try {
+      const result = await openshipCliStatus();
+      const cfg = await openshipGetConfig();
+      setOpenship(cfg);
+      if (result.ok) {
+        setFeedback(result.detail || result.message);
+      } else {
+        setError(result.message);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setOpenshipBusy(null);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -479,6 +585,98 @@ export function SettingsPanel({ mesh }: Props) {
             devices: same PAT + paste that gist ID → Join mesh → Sync now.
           </p>
         )}
+      </div>
+
+      <div className="settings-list">
+        <div className="settings-block">
+          <h3 className="settings-block__title">OpenShip</h3>
+          <p className="settings-block__desc">
+            Thin headless ship path. Deez-PM rows call CLI for Ship Preview /
+            Promote Live — do not open the OpenShip dashboard for happy path.
+          </p>
+
+          {desktop ? (
+            <>
+              <label className="settings-field">
+                <span className="settings-field__label">API URL</span>
+                <input
+                  className="settings-field__input"
+                  type="url"
+                  value={openshipApiDraft}
+                  disabled={!!openshipBusy}
+                  onChange={(e) => setOpenshipApiDraft(e.target.value)}
+                  onBlur={() => void saveOpenshipUrls()}
+                  placeholder="http://localhost:4000"
+                />
+              </label>
+              <label className="settings-field">
+                <span className="settings-field__label">Dashboard URL</span>
+                <input
+                  className="settings-field__input"
+                  type="url"
+                  value={openshipDashDraft}
+                  disabled={!!openshipBusy}
+                  onChange={(e) => setOpenshipDashDraft(e.target.value)}
+                  onBlur={() => void saveOpenshipUrls()}
+                  placeholder="http://localhost:3001"
+                />
+              </label>
+              <label className="settings-field">
+                <span className="settings-field__label">OpenShip PAT</span>
+                <input
+                  className="settings-field__input"
+                  type="password"
+                  autoComplete="off"
+                  placeholder={
+                    openship?.hasPat ? "•••••••• (saved)" : "opsh_pat_…"
+                  }
+                  value={openshipPatDraft}
+                  disabled={!!openshipBusy}
+                  onChange={(e) => setOpenshipPatDraft(e.target.value)}
+                />
+              </label>
+              <div className="fuel-source__actions">
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  disabled={!!openshipBusy || !openshipPatDraft.trim()}
+                  aria-busy={openshipBusy === "pat" || undefined}
+                  onClick={() => void saveOpenshipPat()}
+                >
+                  {openshipBusy === "pat" ? "Saving…" : "Save PAT"}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--quiet"
+                  disabled={!!openshipBusy || !openship?.hasPat}
+                  aria-busy={openshipBusy === "clear" || undefined}
+                  onClick={() => void clearOpenshipPat()}
+                >
+                  Clear PAT
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--quiet"
+                  disabled={!!openshipBusy}
+                  aria-busy={openshipBusy === "status" || undefined}
+                  onClick={() => void checkOpenshipCli()}
+                >
+                  {openshipBusy === "status" ? "Checking…" : "CLI status"}
+                </button>
+              </div>
+              <p className="settings-meta">
+                {openship?.cliAvailable
+                  ? "openship CLI found on PATH"
+                  : "openship CLI not on PATH — install Node 22+ then npm i -g openship"}
+                {openship?.lastError ? ` · ${openship.lastError}` : ""}
+              </p>
+            </>
+          ) : (
+            <p className="settings-meta">
+              OpenShip ship actions need the desktop app on a host with the CLI.
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="settings-list">

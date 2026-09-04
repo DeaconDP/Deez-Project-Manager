@@ -71,6 +71,26 @@ export function PlatformIcon({ platform }: { platform: Platform }) {
           />
         </svg>
       );
+    case "Native":
+      return (
+        <svg {...common}>
+          <rect
+            x="5.25"
+            y="2.75"
+            width="7.5"
+            height="12.5"
+            rx="1.4"
+            stroke="currentColor"
+            strokeWidth="1.35"
+          />
+          <path
+            d="M7.5 13.75h3"
+            stroke="currentColor"
+            strokeWidth="1.25"
+            strokeLinecap="round"
+          />
+        </svg>
+      );
     case "Viverse":
       return (
         <svg {...common}>

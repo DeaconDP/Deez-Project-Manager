@@ -117,3 +117,16 @@
 - [x] Capacitor config `io.worldbuild.deez` + `ios/` + `android/` wrapping Vite `dist/`
 - [x] `npm run native:sync` / `native:ios` / `native:android` / `native:verify`
 - [ ] TestFlight / Play Store upload (signing: d@worldbuild.io)
+
+## Fleet ops (OpenShip thin adapter)
+
+- [x] Project fleet fields: siteId / openshipProjectId / preview+live URLs / host / stickyPort / launchCmd / lastBuildAt
+- [x] Settings → OpenShip: API URL + PAT (credential store) + CLI status
+- [x] Row overflow (fleet rows only): Ship Preview · Promote Live · Update Local · OpenShip status · open URLs
+- [x] `scripts/dale-auto-rebuild.sh` shared helper contract
+- [x] Per-host inventory: stamp `host`, default **This host** filter, mesh keeps sticky path/port local (Ada ≠ Edgar)
+- [x] Product vs surface: shared `siteId` + `surface` label; Native platform; Emily-style multi-app = many rows
+- [ ] Per site (deac-online / worldbuild / …): classify news & dynamic content as **in-repo** | **host-db/CMS** | **live-feed** | **external-CMS** — decides if Promote Live (`git` / `edgar`) is enough or a content-sync verb is needed
+- [ ] Wire deac-online pilot row against Ada OpenShip (needs Ada always-on + domain)
+- [ ] Rollback verb + site-ops health glance on the same row
+
