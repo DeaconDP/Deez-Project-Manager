@@ -25,6 +25,8 @@ Portfolio project dashboard (Tauri) replacing day-to-day Unity Hub / VCC list us
 
 **Product vs surface (hard rule):** one **row** = one launchable / deployable surface (folder, sticky PWA, Unity/Unreal project, native app, marketing site, …). Stacks differ: Web · Native · Unity · Unreal · site. One **product** (Emily, deac-online, …) can span **many rows** — website + app, or several apps — linked by a shared `siteId`. Ops verbs (Ship / Promote / Update Local) act **per surface**, never “rebuild the whole product.”
 
+**Content class (hard rule):** stamp each site’s news / dynamic content before inventing new ship verbs. **in-repo** rides Promote Live (`git` / `edgar`). **host-db/CMS** needs a content-sync verb. **live-feed** needs no promote. **external-CMS** stays outside the git path. Active checklist: `TODO.md` Fleet ops.
+
 **Three verbs (thin backends):**
 | Verb | Means | Backend |
 |--|--|--|
@@ -147,6 +149,7 @@ Portfolio project dashboard (Tauri) replacing day-to-day Unity Hub / VCC list us
 - 2026-09-03: OpenShip dashboard / site-ops as deploy home — Deez-PM is the only happy-path UI; backends stay headless (`src-tauri/src/openship.rs`).
 - 2026-09-03: GitHub Actions as rebuild path — local `dale-auto-rebuild` + OpenShip CLI only (`scripts/dale-auto-rebuild.sh`).
 - 2026-09-03: Rollback / health-sensor feed polish — after Ship Preview + Promote Live prove on one site (`src-tauri/src/openship.rs`).
+- 2026-09-04: Content-sync ship verb — only after a site is classified **host-db/CMS**; in-repo news stays on Promote Live (`TODO.md` Fleet ops · `ROADMAP.md` Content class).
 - 2026-07-19: Native macOS Apple GPU, CPU temperature, Wi‑Fi, USB topology, and per-process network telemetry — local Mac compatibility ships with explicit unavailable states first (`src-tauri/src/metrics/`, `src-tauri/src/net/`, `src-tauri/src/usb/mod.rs:28`).
 - 2026-07-15: Cross-PC metadata sync — superseded 2026-09-02 by gist mesh hub (`src/lib/mesh.ts`, `src-tauri/src/mesh.rs`).
 - 2026-09-02: True LAN P2P / mDNS mesh — hub-via-private-gist is enough for Dale’s 7-device set; local paths stay per-device (`src/lib/mesh.ts`).

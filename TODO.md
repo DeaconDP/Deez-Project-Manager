@@ -119,5 +119,6 @@
 - [x] `scripts/dale-auto-rebuild.sh` shared helper contract
 - [x] Per-host inventory: stamp `host`, default **This host** filter, mesh keeps sticky path/port local (Ada ≠ Edgar)
 - [x] Product vs surface: shared `siteId` + `surface` label; Native platform; Emily-style multi-app = many rows
+- [ ] Per site (deac-online / worldbuild / …): classify news & dynamic content as **in-repo** | **host-db/CMS** | **live-feed** | **external-CMS** — decides if Promote Live (`git` / `edgar`) is enough or a content-sync verb is needed
 - [ ] Wire deac-online pilot row against Ada OpenShip (needs Ada always-on + domain)
 - [ ] Rollback verb + site-ops health glance on the same row
