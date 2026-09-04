@@ -110,3 +110,4 @@
 - [x] Optional shared-secret header on remote API (tailnet ACL still primary)
 - [x] Remote write: status / priority / kanban via existing `save_projects` path
 - [x] Settings peer list (MagicDNS names) + switch active node from phone
+- [x] Phone PWA chrome: hide desktop-only Import/Add/Sync/Open/Run/Reveal; soft-fail Settings without `/api`; safe-area insets

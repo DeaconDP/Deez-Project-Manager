@@ -98,6 +98,7 @@ Portfolio project dashboard (Tauri) replacing day-to-day Unity Hub / VCC list us
 - [x] Optional shared secret header (belt on top of tailnet ACL); never commit tokens
 - [x] Write-path remote: status / priority / kanban edits that already save through `save_projects`
 - [x] Peer list in Settings (paste MagicDNS names); one-tap switch which node the phone is talking to
+- [x] Phone chrome cull: browser/PWA hides host-only Import/Add/Sync/Open/Run/Reveal/Browse; Settings soft-fails without live `/api`
 - [ ] Later only if needed: remote “Run / Open on host” with explicit confirm — not in first phone cut
 
 **Non-goals (explicit):**

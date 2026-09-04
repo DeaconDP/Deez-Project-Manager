@@ -333,9 +333,9 @@ interface RowProps {
   onStatusChange: (id: string, status: Status) => void;
   onCategoryChange: (id: string, category: Category) => void;
   onOpenBoard?: (project: Project) => void;
-  onOpen: (project: Project) => void;
-  onRun: (project: Project) => void;
-  onReveal: (project: Project) => void;
+  onOpen?: (project: Project) => void;
+  onRun?: (project: Project) => void;
+  onReveal?: (project: Project) => void;
   onEdit: (project: Project) => void;
   onArchive: (project: Project) => void;
   onRestore: (project: Project) => void;
@@ -354,6 +354,7 @@ function RowOverflowMenu({
   revealBusy,
   archivedView,
   compact,
+  hostActions,
   onOpen,
   onReveal,
   onEdit,
@@ -366,8 +367,9 @@ function RowOverflowMenu({
   revealBusy: boolean;
   archivedView: boolean;
   compact?: boolean;
-  onOpen: (project: Project) => void;
-  onReveal: (project: Project) => void;
+  hostActions: boolean;
+  onOpen?: (project: Project) => void;
+  onReveal?: (project: Project) => void;
   onEdit: (project: Project) => void;
   onArchive: (project: Project) => void;
   onRestore: (project: Project) => void;
@@ -468,28 +470,32 @@ function RowOverflowMenu({
             style={listStyle}
             onPointerDown={(e) => e.stopPropagation()}
           >
-            <li role="none">
-              <button
-                type="button"
-                role="menuitem"
-                disabled={rowBusy || !project.localPath}
-                aria-busy={openBusy}
-                onClick={() => run(() => onOpen(project))}
-              >
-                {openBusy ? "Opening…" : "Open"}
-              </button>
-            </li>
-            <li role="none">
-              <button
-                type="button"
-                role="menuitem"
-                disabled={rowBusy || !project.localPath}
-                aria-busy={revealBusy}
-                onClick={() => run(() => onReveal(project))}
-              >
-                {revealBusy ? "Revealing…" : "Reveal in file manager"}
-              </button>
-            </li>
+            {hostActions && onOpen ? (
+              <li role="none">
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={rowBusy || !project.localPath}
+                  aria-busy={openBusy}
+                  onClick={() => run(() => onOpen(project))}
+                >
+                  {openBusy ? "Opening…" : "Open"}
+                </button>
+              </li>
+            ) : null}
+            {hostActions && onReveal ? (
+              <li role="none">
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={rowBusy || !project.localPath}
+                  aria-busy={revealBusy}
+                  onClick={() => run(() => onReveal(project))}
+                >
+                  {revealBusy ? "Revealing…" : "Reveal in file manager"}
+                </button>
+              </li>
+            ) : null}
             <li role="none">
               <button
                 type="button"
@@ -574,47 +580,59 @@ function ProjectActions({
   const runBusy = rowBusy && busyAction === "run";
   const revealBusy = rowBusy && busyAction === "reveal";
   const btnClass = compact ? "btn-sm" : undefined;
-  const canRun = !!project.localPath && project.hasRunScript;
+  const hostActions = !!(onOpen && onRun && onReveal);
+  const canRun = hostActions && !!project.localPath && project.hasRunScript;
 
   return (
     <div className="project-actions">
-      {canRun ? (
-        <button
-          type="button"
-          className={`btn-primary project-action-run${btnClass ? ` ${btnClass}` : ""}`}
-          disabled={rowBusy || !project.localPath}
-          aria-busy={runBusy}
-          onClick={() => onRun(project)}
-          title="Launch run.bat / run.command"
-        >
-          {runBusy ? (
-            <span className="btn-busy-label">
-              <Spinner size="sm" />
-              Starting…
-            </span>
-          ) : (
-            "Run"
-          )}
-        </button>
+      {hostActions ? (
+        canRun ? (
+          <button
+            type="button"
+            className={`btn-primary project-action-run${btnClass ? ` ${btnClass}` : ""}`}
+            disabled={rowBusy || !project.localPath}
+            aria-busy={runBusy}
+            onClick={() => onRun?.(project)}
+            title="Launch run.bat / run.command"
+          >
+            {runBusy ? (
+              <span className="btn-busy-label">
+                <Spinner size="sm" />
+                Starting…
+              </span>
+            ) : (
+              "Run"
+            )}
+          </button>
+        ) : (
+          <button
+            type="button"
+            className={`btn-primary project-action-open${btnClass ? ` ${btnClass}` : ""}`}
+            disabled={rowBusy || !project.localPath}
+            aria-busy={openBusy}
+            onClick={() => onOpen?.(project)}
+            title={
+              project.localPath ? "Open project" : "Set a local path to open"
+            }
+          >
+            {openBusy ? (
+              <span className="btn-busy-label">
+                <Spinner size="sm" />
+                Opening…
+              </span>
+            ) : (
+              "Open"
+            )}
+          </button>
+        )
       ) : (
         <button
           type="button"
-          className={`btn-primary project-action-open${btnClass ? ` ${btnClass}` : ""}`}
-          disabled={rowBusy || !project.localPath}
-          aria-busy={openBusy}
-          onClick={() => onOpen(project)}
-          title={
-            project.localPath ? "Open project" : "Set a local path to open"
-          }
+          className={`btn-primary project-action-edit${btnClass ? ` ${btnClass}` : ""}`}
+          onClick={() => onEdit(project)}
+          title="Edit project"
         >
-          {openBusy ? (
-            <span className="btn-busy-label">
-              <Spinner size="sm" />
-              Opening…
-            </span>
-          ) : (
-            "Open"
-          )}
+          Edit
         </button>
       )}
       <RowOverflowMenu
@@ -624,6 +642,7 @@ function ProjectActions({
         revealBusy={!!revealBusy}
         archivedView={archivedView}
         compact={compact}
+        hostActions={hostActions}
         onOpen={onOpen}
         onReveal={onReveal}
         onEdit={onEdit}
@@ -1172,9 +1191,9 @@ interface TableProps {
   onStatusChange: (id: string, status: Status) => void;
   onCategoryChange: (id: string, category: Category) => void;
   onOpenBoard?: (project: Project) => void;
-  onOpen: (project: Project) => void;
-  onRun: (project: Project) => void;
-  onReveal: (project: Project) => void;
+  onOpen?: (project: Project) => void;
+  onRun?: (project: Project) => void;
+  onReveal?: (project: Project) => void;
   onEdit: (project: Project) => void;
   onArchive: (project: Project) => void;
   onRestore: (project: Project) => void;

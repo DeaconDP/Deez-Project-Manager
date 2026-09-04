@@ -101,7 +101,14 @@ export function SettingsPanel({ mesh }: Props) {
           }
         }
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+        if (cancelled) return;
+        // Phone mesh-only PWA has no /api host — Settings still owns mesh join.
+        if (!desktop) {
+          setRemote(null);
+          setQrSvg(null);
+        } else {
+          setError(e instanceof Error ? e.message : String(e));
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -478,8 +485,9 @@ export function SettingsPanel({ mesh }: Props) {
         <div className="settings-block">
           <h3 className="settings-block__title">Remote access</h3>
           <p className="settings-block__desc">
-            Tailscale-only live PWA URL for this node (Ada + live store). Not
-            public internet. Complements gist mesh (offline replica).
+            {desktop
+              ? "Tailscale-only live PWA URL for this node (Ada + live store). Not public internet. Complements gist mesh (offline replica)."
+              : "Paste a Tailscale live-node URL to monitor Ada metrics on this phone. Mesh sync does not need this."}
           </p>
 
           {desktop ? (
@@ -498,6 +506,7 @@ export function SettingsPanel({ mesh }: Props) {
             />
           ) : null}
 
+          {desktop ? (
           <label className="settings-field">
             <span className="settings-field__label">Port</span>
             <input
@@ -517,6 +526,7 @@ export function SettingsPanel({ mesh }: Props) {
               }}
             />
           </label>
+          ) : null}
 
           <label className="settings-field">
             <span className="settings-field__label">Shared secret (optional)</span>
@@ -552,11 +562,16 @@ export function SettingsPanel({ mesh }: Props) {
                 </button>
               ) : null}
             </div>
-          ) : (
+          ) : desktop ? (
             <p className="settings-muted">
               {ts?.installed
                 ? "No Tailscale IPv4 yet — check the Tailscale app."
                 : "Install Tailscale and join your tailnet to get a phone URL."}
+            </p>
+          ) : (
+            <p className="settings-muted">
+              Open the host URL from Settings → Remote access on a desktop node,
+              or switch peer below.
             </p>
           )}
 
@@ -569,22 +584,24 @@ export function SettingsPanel({ mesh }: Props) {
             />
           ) : null}
 
-          <label className="settings-field">
-            <span className="settings-field__label">Peer nodes (MagicDNS)</span>
-            <textarea
-              className="settings-field__input settings-field__input--area"
-              rows={3}
-              placeholder={"other-pc.tailnet.ts.net\nada.tailnet.ts.net:5197"}
-              value={peersDraft}
-              disabled={remoteBusy}
-              onChange={(e) => setPeersDraft(e.target.value)}
-              onBlur={() => {
-                if (desktop && remote) void applyRemote({});
-              }}
-            />
-          </label>
+          {desktop ? (
+            <label className="settings-field">
+              <span className="settings-field__label">Peer nodes (MagicDNS)</span>
+              <textarea
+                className="settings-field__input settings-field__input--area"
+                rows={3}
+                placeholder={"other-pc.tailnet.ts.net\nada.tailnet.ts.net:5197"}
+                value={peersDraft}
+                disabled={remoteBusy}
+                onChange={(e) => setPeersDraft(e.target.value)}
+                onBlur={() => {
+                  if (desktop && remote) void applyRemote({});
+                }}
+              />
+            </label>
+          ) : null}
 
-          {remote?.settings.peers.length || peerSwitch ? (
+          {remote?.settings.peers.length || peerSwitch || !desktop ? (
             <div className="settings-peers">
               <span className="settings-field__label">Switch node</span>
               <div className="settings-peers__row">
