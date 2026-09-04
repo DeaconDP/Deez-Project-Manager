@@ -45,7 +45,11 @@ export interface MeshSyncResult {
   peerCount: number;
 }
 
-/** Fields that stay on the local machine — not shared across the mesh. */
+/**
+ * Fields that stay on the owning machine — not shared across the mesh.
+ * Each host invents different projects; peers keep a host stamp + shared
+ * OpenShip/site ids, but never another box's path / sticky port / launch.
+ */
 function stripLocalProject(p: Project): Project {
   return {
     ...p,
@@ -55,6 +59,9 @@ function stripLocalProject(p: Project): Project {
     gitBranch: null,
     gitDirty: false,
     hasRunScript: false,
+    lastBuildAt: null,
+    stickyPort: null,
+    launchCmd: null,
     // Keep githubStatus as remote-only when no local path on peers
     githubStatus:
       p.githubUrl || p.githubRepo ? ("remote-only" as const) : ("none" as const),
@@ -100,10 +107,24 @@ function mergeByUpdatedAt<T extends { id: string; updatedAt: string }>(
 }
 
 function restoreLocalPath(winner: Project, local?: Project): Project {
-  if (!local?.localPath) return winner;
-  if (winner.localPath === local.localPath) return winner;
+  if (!local) return winner;
+  // Prefer this machine's host stamp + path/port when we already knew the row.
+  const host = local.host?.trim() ? local.host : winner.host;
+  if (!local.localPath) {
+    if (host === winner.host) return winner;
+    return { ...winner, host };
+  }
+  if (
+    winner.localPath === local.localPath &&
+    winner.host === host &&
+    winner.stickyPort === local.stickyPort &&
+    winner.launchCmd === local.launchCmd
+  ) {
+    return winner;
+  }
   return {
     ...winner,
+    host,
     localPath: local.localPath,
     // Keep this machine's git probe when we still have a path
     gitAhead: local.gitAhead,
@@ -112,6 +133,9 @@ function restoreLocalPath(winner: Project, local?: Project): Project {
     gitDirty: local.gitDirty,
     hasRunScript: local.hasRunScript,
     githubStatus: local.githubStatus,
+    lastBuildAt: local.lastBuildAt ?? winner.lastBuildAt,
+    stickyPort: local.stickyPort ?? null,
+    launchCmd: local.launchCmd ?? null,
   };
 }
 

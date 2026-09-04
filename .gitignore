@@ -16,6 +16,9 @@ dist-ssr
 !.env.example
 src-tauri/target
 
+# Local rebuild stamp (dale-auto-rebuild)
+.last-build
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -17,6 +17,35 @@ Portfolio project dashboard (Tauri) replacing day-to-day Unity Hub / VCC list us
 
 ## Epics
 
+### Fleet ops hub (Deez-PM = only dashboard)
+
+**North star:** one place to administer, monitor, and orchestrate Dale’s local/git projects across Ada / Edgar / Steve / Luckey / Woz / Hermes — without opening OpenShip UI, site-ops dashboards, or per-app Dock binaries for happy-path ops.
+
+**Host ownership (hard rule):** each computer hosts a **different** project inventory. Ada ≠ Edgar ≠ Steve. A live Deez node only runs **Update Local / Run / sticky rebuild** for rows that live on that machine. Cross-host glance = **switch Tailscale MagicDNS peer** (or “All hosts” list filter for pathless stamps) — not one mirrored catalog of every sticky site on every box.
+
+**Product vs surface (hard rule):** one **row** = one launchable / deployable surface (folder, sticky PWA, Unity/Unreal project, native app, marketing site, …). Stacks differ: Web · Native · Unity · Unreal · site. One **product** (Emily, deac-online, …) can span **many rows** — website + app, or several apps — linked by a shared `siteId`. Ops verbs (Ship / Promote / Update Local) act **per surface**, never “rebuild the whole product.”
+
+**Content class (hard rule):** stamp each site’s news / dynamic content before inventing new ship verbs. **in-repo** rides Promote Live (`git` / `edgar`). **host-db/CMS** needs a content-sync verb. **live-feed** needs no promote. **external-CMS** stays outside the git path. Active checklist: `TODO.md` Fleet ops.
+
+**Three verbs (thin backends):**
+| Verb | Means | Backend |
+|--|--|--|
+| Administer | Registry: path, **owning host**, port, repo, URLs, launch | Deez-PM itself (per-host store) |
+| Monitor | git behind, last build, Preview/Live, health | site-ops sensors + OpenShip status + local helper |
+| Orchestrate | Update Local · Ship Preview · Promote Live · Rollback · Open URL | `dale-auto-rebuild` / Dock · OpenShip CLI/API |
+
+**Poteto slices (in order):**
+- [ ] Ada: OpenShip always-on + one real domain (infra — not this repo alone)
+- [x] Deez-PM thin OpenShip adapter: Settings PAT/API + project fleet fields + row Ship Preview / Promote Live / status
+- [x] Same row: **Update Local** (fetch/pull + `dale-auto-rebuild` / `run.* --rebuild`)
+- [x] Shared `scripts/dale-auto-rebuild.sh` helper contract for Dock/`run.command`
+- [x] Per-host inventory: stamp `host`, default table = **This host**, mesh keeps sticky path/port local
+- [x] Product/surface model: shared `siteId` + optional `surface` label; Native platform; one row per face (Emily multi-app)
+- [ ] Pilot green on **deac-online** against live Ada OpenShip
+- [ ] Fleet cutover of more rows (only after pilot)
+
+**Non-goals:** second control-plane UI · GitHub Actions rebuilds · rebuild-on-every-save · Hermes Desktop replacement · federated “union all hosts into one live table” (peer switch is enough) · nested product tree UI (shared `siteId` is enough)
+
 ### Learn & Tools
 - ~~Re-introduce Learn / Tools nav when content exists~~ — superseded by Projects / Overview / Processes / Fuel / Settings tabs (`src/App.tsx`)
 
@@ -121,6 +150,11 @@ Portfolio project dashboard (Tauri) replacing day-to-day Unity Hub / VCC list us
 
 ## Deferred
 
+- 2026-09-03: Fleet cutover of all `/srv/www` + sticky-port rows — wait for deac-online pilot green on Ada OpenShip (`ROADMAP.md` Fleet ops hub).
+- 2026-09-03: OpenShip dashboard / site-ops as deploy home — Deez-PM is the only happy-path UI; backends stay headless (`src-tauri/src/openship.rs`).
+- 2026-09-03: GitHub Actions as rebuild path — local `dale-auto-rebuild` + OpenShip CLI only (`scripts/dale-auto-rebuild.sh`).
+- 2026-09-03: Rollback / health-sensor feed polish — after Ship Preview + Promote Live prove on one site (`src-tauri/src/openship.rs`).
+- 2026-09-04: Content-sync ship verb — only after a site is classified **host-db/CMS**; in-repo news stays on Promote Live (`TODO.md` Fleet ops · `ROADMAP.md` Content class).
 - 2026-07-19: Native macOS Apple GPU, CPU temperature, Wi‑Fi, USB topology, and per-process network telemetry — local Mac compatibility ships with explicit unavailable states first (`src-tauri/src/metrics/`, `src-tauri/src/net/`, `src-tauri/src/usb/mod.rs:28`).
 - 2026-07-15: Cross-PC metadata sync — superseded 2026-09-02 by gist mesh hub (`src/lib/mesh.ts`, `src-tauri/src/mesh.rs`).
 - 2026-09-02: True LAN P2P / mDNS mesh — hub-via-private-gist is enough for Dale’s 7-device set; local paths stay per-device (`src/lib/mesh.ts`).

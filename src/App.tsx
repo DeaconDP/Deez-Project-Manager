@@ -9,14 +9,17 @@ import {
   isDesktopApp,
   openPath,
   openUnityProject,
+  onGitSyncUpdated,
+  openshipProjectStatus,
+  openshipShip,
   pickProjectFolder,
   pickProjectFolders,
-  onGitSyncUpdated,
   refreshGithubStatuses,
   removeSyncRoot,
   runProject,
   syncAllParentFolders,
   syncParentFolder,
+  updateLocalProject,
 } from "./api";
 import { ActionFeedback } from "./components/ActionFeedback";
 import { AppChrome } from "./components/AppChrome";
@@ -41,6 +44,11 @@ import {
   MetricsLiveSlot,
 } from "./monitor/components/MetricsChrome";
 import type { Project, ProjectStore } from "./types";
+import {
+  projectOnThisHost,
+  withHostStamp,
+} from "./types";
+import { defaultDeviceName } from "./lib/mesh";
 import "./App.css";
 import "./monitor/monitor.css";
 
@@ -73,9 +81,23 @@ type ToolbarAction =
   | "add"
   | "sync"
   | "sync-manage";
-type RowBusy = { id: string; kind: "open" | "reveal" | "run" };
+type RowBusy = {
+  id: string;
+  kind: "open" | "reveal" | "run" | "ship" | "promote" | "updateLocal" | "opsStatus";
+};
 type AppTab = "projects" | "overview" | "processes" | "fuel" | "settings";
 type ProcessView = "cpu" | "network" | "usb" | "spikes";
+type HostScope = "this" | "all";
+
+const HOST_SCOPE_KEY = "deez-host-scope";
+
+function readHostScope(): HostScope {
+  try {
+    return localStorage.getItem(HOST_SCOPE_KEY) === "all" ? "all" : "this";
+  } catch {
+    return "this";
+  }
+}
 
 const APP_TABS: { id: AppTab; label: string }[] = [
   { id: "projects", label: "Projects" },
@@ -147,6 +169,7 @@ function App() {
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<Project | null>(null);
   const [listView, setListView] = useState<"active" | "archive">("active");
+  const [hostScope, setHostScope] = useState<HostScope>(() => readHostScope());
   const [archiveTarget, setArchiveTarget] = useState<Project | null>(null);
   const [boardProjectId, setBoardProjectId] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -177,13 +200,19 @@ function App() {
     [boardProjectId, projects],
   );
 
+  const thisHost =
+    mesh.config?.deviceName?.trim() || defaultDeviceName();
+
   const filtered = useMemo(() => {
-    const byArchive = projects.filter((p) =>
+    let list = projects.filter((p) =>
       listView === "archive" ? p.archived : !p.archived,
     );
+    if (hostScope === "this") {
+      list = list.filter((p) => projectOnThisHost(p, thisHost));
+    }
     const q = search.trim().toLowerCase();
-    if (!q) return byArchive;
-    return byArchive.filter((p) => {
+    if (!q) return list;
+    return list.filter((p) => {
       const hay = [
         p.name,
         p.platform,
@@ -194,12 +223,26 @@ function App() {
         p.priority,
         p.agency ?? "",
         p.client ?? "",
+        p.host ?? "",
+        p.siteId ?? "",
       ]
         .join(" ")
         .toLowerCase();
       return hay.includes(q);
     });
-  }, [projects, search, listView]);
+  }, [projects, search, listView, hostScope, thisHost]);
+
+  // Stamp owning host onto local-path rows that still lack one.
+  useEffect(() => {
+    if (loading) return;
+    let changed = false;
+    const next = projects.map((p) => {
+      const stamped = withHostStamp(p, thisHost);
+      if (stamped !== p && stamped.host !== p.host) changed = true;
+      return stamped;
+    });
+    if (changed) replaceAll(next);
+  }, [loading, thisHost]); // eslint-disable-line react-hooks/exhaustive-deps -- one-shot heal per host label
 
   const archivedCount = useMemo(
     () => projects.filter((p) => p.archived).length,
@@ -489,6 +532,133 @@ function App() {
     setRowBusy(null);
   }
 
+  async function handleShipPreview(project: Project) {
+    const id = project.openshipProjectId?.trim();
+    if (!id) {
+      openAction.setFeedback({
+        kind: "error",
+        message: "Set OpenShip project id in Edit first.",
+      });
+      return;
+    }
+    setRowBusy({ id: project.id, kind: "ship" });
+    await openAction.run(
+      async () => {
+        const result = await openshipShip(id, "preview");
+        if (!result.ok) throw new Error(result.message);
+        return result.detail
+          ? { message: `${result.message} — ${result.detail}`, persist: true }
+          : result.message;
+      },
+      { loading: "Shipping Preview…" },
+    );
+    setRowBusy(null);
+  }
+
+  async function handlePromoteLive(project: Project) {
+    const id = project.openshipProjectId?.trim();
+    if (!id) {
+      openAction.setFeedback({
+        kind: "error",
+        message: "Set OpenShip project id in Edit first.",
+      });
+      return;
+    }
+    setRowBusy({ id: project.id, kind: "promote" });
+    await openAction.run(
+      async () => {
+        const result = await openshipShip(id, "production");
+        if (!result.ok) throw new Error(result.message);
+        return result.detail
+          ? { message: `${result.message} — ${result.detail}`, persist: true }
+          : result.message;
+      },
+      { loading: "Promoting Live…" },
+    );
+    setRowBusy(null);
+  }
+
+  async function handleUpdateLocal(project: Project) {
+    if (!project.localPath) {
+      openAction.setFeedback({
+        kind: "error",
+        message: "Set a local path before Update Local.",
+      });
+      return;
+    }
+    setRowBusy({ id: project.id, kind: "updateLocal" });
+    await openAction.run(
+      async () => {
+        const result = await updateLocalProject(project.localPath!);
+        if (!result.ok) throw new Error(result.message);
+        if (result.lastBuildAt) {
+          upsert({
+            ...project,
+            lastBuildAt: result.lastBuildAt,
+            updatedAt: new Date().toISOString(),
+          });
+        }
+        return { message: result.message, persist: true };
+      },
+      { loading: "Updating local…" },
+    );
+    setRowBusy(null);
+  }
+
+  async function handleOpsStatus(project: Project) {
+    const id = project.openshipProjectId?.trim();
+    if (!id) {
+      openAction.setFeedback({
+        kind: "error",
+        message: "Set OpenShip project id in Edit first.",
+      });
+      return;
+    }
+    setRowBusy({ id: project.id, kind: "opsStatus" });
+    await openAction.run(
+      async () => {
+        const result = await openshipProjectStatus(id);
+        if (!result.ok) throw new Error(result.message);
+        return {
+          message: result.detail
+            ? `${result.message}: ${result.detail.slice(0, 240)}`
+            : result.message,
+          persist: true,
+        };
+      },
+      { loading: "Fetching OpenShip status…" },
+    );
+    setRowBusy(null);
+  }
+
+  async function handleOpenPreviewUrl(project: Project) {
+    const url = project.previewUrl?.trim();
+    if (!url) return;
+    setRowBusy({ id: project.id, kind: "open" });
+    await openAction.run(
+      async () => {
+        const { openUrl } = await import("@tauri-apps/plugin-opener");
+        await openUrl(url);
+      },
+      { loading: "Opening Preview…", success: "Preview opened" },
+    );
+    setRowBusy(null);
+  }
+
+  async function handleOpenLiveUrl(project: Project) {
+    const url = project.liveUrl?.trim();
+    if (!url) return;
+    setRowBusy({ id: project.id, kind: "open" });
+    await openAction.run(
+      async () => {
+        const { openUrl } = await import("@tauri-apps/plugin-opener");
+        await openUrl(url);
+      },
+      { loading: "Opening Live…", success: "Live opened" },
+    );
+    setRowBusy(null);
+  }
+
   const handleArchiveRequest = useCallback((project: Project) => {
     setArchiveTarget(project);
   }, []);
@@ -516,12 +686,24 @@ function App() {
     run: handleRun,
     reveal: handleReveal,
     add: handleAddFolder,
+    ship: handleShipPreview,
+    promote: handlePromoteLive,
+    updateLocal: handleUpdateLocal,
+    opsStatus: handleOpsStatus,
+    previewUrl: handleOpenPreviewUrl,
+    liveUrl: handleOpenLiveUrl,
   });
   openHandlersRef.current = {
     open: handleOpen,
     run: handleRun,
     reveal: handleReveal,
     add: handleAddFolder,
+    ship: handleShipPreview,
+    promote: handlePromoteLive,
+    updateLocal: handleUpdateLocal,
+    opsStatus: handleOpsStatus,
+    previewUrl: handleOpenPreviewUrl,
+    liveUrl: handleOpenLiveUrl,
   };
 
   const onOpenProject = useCallback((p: Project) => {
@@ -532,6 +714,24 @@ function App() {
   }, []);
   const onRevealProject = useCallback((p: Project) => {
     void openHandlersRef.current.reveal(p);
+  }, []);
+  const onShipPreview = useCallback((p: Project) => {
+    void openHandlersRef.current.ship(p);
+  }, []);
+  const onPromoteLive = useCallback((p: Project) => {
+    void openHandlersRef.current.promote(p);
+  }, []);
+  const onUpdateLocal = useCallback((p: Project) => {
+    void openHandlersRef.current.updateLocal(p);
+  }, []);
+  const onOpsStatus = useCallback((p: Project) => {
+    void openHandlersRef.current.opsStatus(p);
+  }, []);
+  const onOpenPreviewUrl = useCallback((p: Project) => {
+    void openHandlersRef.current.previewUrl(p);
+  }, []);
+  const onOpenLiveUrl = useCallback((p: Project) => {
+    void openHandlersRef.current.liveUrl(p);
   }, []);
   const onAddFolder = useCallback(() => {
     void openHandlersRef.current.add();
@@ -672,6 +872,48 @@ function App() {
                         archivedCount={archivedCount}
                         onChange={setListView}
                       />
+                      <div
+                        className="host-scope"
+                        role="group"
+                        aria-label="Host inventory"
+                      >
+                        <button
+                          type="button"
+                          className={`btn-secondary host-scope__btn${
+                            hostScope === "this" ? " is-active" : ""
+                          }`}
+                          aria-pressed={hostScope === "this"}
+                          title={`Show projects on this machine (${thisHost})`}
+                          onClick={() => {
+                            setHostScope("this");
+                            try {
+                              localStorage.setItem(HOST_SCOPE_KEY, "this");
+                            } catch {
+                              /* ignore */
+                            }
+                          }}
+                        >
+                          This host
+                        </button>
+                        <button
+                          type="button"
+                          className={`btn-secondary host-scope__btn${
+                            hostScope === "all" ? " is-active" : ""
+                          }`}
+                          aria-pressed={hostScope === "all"}
+                          title="Show every host stamp (Update Local only works where the path lives)"
+                          onClick={() => {
+                            setHostScope("all");
+                            try {
+                              localStorage.setItem(HOST_SCOPE_KEY, "all");
+                            } catch {
+                              /* ignore */
+                            }
+                          }}
+                        >
+                          All hosts
+                        </button>
+                      </div>
                       {desktop ? (
                         <>
                           <SyncMenu
@@ -728,6 +970,7 @@ function App() {
                           </button>
                         </>
                       ) : null}
+
                     </div>
                   </div>
                 </header>
@@ -769,14 +1012,18 @@ function App() {
                     emptyMessage={
                       listView === "archive"
                         ? "No archived projects."
-                        : "No projects yet."
+                        : hostScope === "this"
+                          ? "No projects on this host."
+                          : "No projects yet."
                     }
                     emptyHint={
                       listView === "archive"
                         ? "Archived projects appear here and can be restored anytime."
-                        : desktop
-                          ? "Add a local folder, Sync a parent, or import from Hub, VCC, or GitHub."
-                          : "Join the gist mesh or open a Tailscale live node URL to see projects here."
+                        : !desktop
+                          ? "Join the gist mesh or open a Tailscale live node URL to see projects here."
+                          : hostScope === "this"
+                            ? "This machine only lists its own inventory. Switch Tailscale peer in Settings, or choose All hosts for pathless stamps from other boxes."
+                            : "Add a local folder, Sync a parent, or import from Hub, VCC, or GitHub."
                     }
                     onAdd={
                       desktop && listView === "active"
@@ -797,6 +1044,12 @@ function App() {
                     onEdit={setEditing}
                     onArchive={handleArchiveRequest}
                     onRestore={handleRestore}
+                    onShipPreview={onShipPreview}
+                    onPromoteLive={onPromoteLive}
+                    onUpdateLocal={onUpdateLocal}
+                    onOpsStatus={onOpsStatus}
+                    onOpenPreviewUrl={onOpenPreviewUrl}
+                    onOpenLiveUrl={onOpenLiveUrl}
                   />
                 )}
               </>
