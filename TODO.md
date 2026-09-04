@@ -111,3 +111,9 @@
 - [x] Remote write: status / priority / kanban via existing `save_projects` path
 - [x] Settings peer list (MagicDNS names) + switch active node from phone
 - [x] Phone PWA chrome: hide desktop-only Import/Add/Sync/Open/Run/Reveal; soft-fail Settings without `/api`; safe-area insets
+
+## Native phone shell (Capacitor)
+
+- [x] Capacitor config `io.worldbuild.deez` + `ios/` + `android/` wrapping Vite `dist/`
+- [x] `npm run native:sync` / `native:ios` / `native:android` / `native:verify`
+- [ ] TestFlight / Play Store upload (signing: d@worldbuild.io)
