@@ -91,7 +91,7 @@ function useChromeMetrics(): MetricsValue {
 export function MetricsGlanceSlot() {
   const { snap, ready, error } = useChromeMetrics();
   const fuelItems = useFuelGlanceItems();
-  if (!ready || error) return null;
+  if (!ready || error || !snap.ts) return null;
   return <MetricsGlance snap={snap} fuelItems={fuelItems} />;
 }
 
@@ -107,6 +107,7 @@ export function MetricsLiveSlot() {
       {ready && !error && snap.ts
         ? `Live · ${new Date(snap.ts).toLocaleTimeString()}`
         : null}
+      {ready && !error && !snap.ts ? "Phone · mesh" : null}
     </p>
   );
 }

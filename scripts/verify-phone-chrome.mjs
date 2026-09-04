@@ -62,6 +62,19 @@ const checks = [
     "Safe-area insets for PWA notches",
     () => css.includes("safe-area-inset-top"),
   ],
+  [
+    "Metrics soft-fail without live /api",
+    () => {
+      const metrics = readFileSync(
+        join(root, "src/monitor/api/metrics.ts"),
+        "utf8",
+      );
+      return (
+        metrics.includes("Mesh-only PWA has no live Ada host") &&
+        metrics.includes("return emptySnapshot")
+      );
+    },
+  ],
 ];
 
 let failed = 0;

@@ -89,11 +89,16 @@ export function useFuelUsage() {
       const next = await refreshFuel();
       setResult(next);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      // Phone mesh-only: Fuel needs a Tailscale live node — stay quiet.
+      if (result == null) {
+        setError(null);
+      } else {
+        setError(e instanceof Error ? e.message : String(e));
+      }
     } finally {
       setRefreshing(false);
     }
-  }, [refreshing]);
+  }, [refreshing, result]);
 
   return {
     settings,
