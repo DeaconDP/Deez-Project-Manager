@@ -318,6 +318,7 @@ pub fn make_project_from_discovered(discovered: &DiscoveredProject, sort_index: 
         preview_url: None,
         live_url: None,
         host: None,
+        surface: None,
         sticky_port: None,
         launch_cmd: None,
         last_build_at: None,

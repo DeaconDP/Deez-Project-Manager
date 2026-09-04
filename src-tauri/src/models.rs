@@ -38,6 +38,7 @@ pub enum Platform {
     Unity,
     Unreal,
     Web,
+    Native,
     Viverse,
     Consulting,
     Other,
@@ -111,7 +112,7 @@ pub struct Project {
     pub client: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub year: Option<i32>,
-    /// Shared fleet id (Deez-PM / OpenShip / site-ops).
+    /// Shared product family id (emily / deac-online / …) across many surface rows.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub site_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -120,9 +121,12 @@ pub struct Project {
     pub preview_url: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub live_url: Option<String>,
-    /// Host label: ada / edgar / steve / luckey / woz / hermes / local.
+    /// Owning host label: ada / edgar / steve / luckey / woz / hermes / local.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub host: Option<String>,
+    /// Face of the product this row is (ios / android / site / editor / pwa / …).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub surface: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sticky_port: Option<u16>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

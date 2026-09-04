@@ -4,6 +4,7 @@ export type Platform =
   | "Unity"
   | "Unreal"
   | "Web"
+  | "Native"
   | "Viverse"
   | "Consulting"
   | "Other";
@@ -53,7 +54,10 @@ export interface Project {
   agency?: string;
   client?: string;
   year?: number;
-  /** Shared fleet id across Deez-PM / OpenShip / site-ops. */
+  /**
+   * Product family id (emily / deac-online / …).
+   * Shared across many rows when one product has a site + apps (or several apps).
+   */
   siteId?: string | null;
   openshipProjectId?: string | null;
   previewUrl?: string | null;
@@ -63,6 +67,11 @@ export interface Project {
    * Each host owns different projects — not a mirrored fleet catalog.
    */
   host?: string | null;
+  /**
+   * Which face of the product this row is (ios / android / site / editor / pwa / …).
+   * One row = one surface; ops verbs act per surface.
+   */
+  surface?: string | null;
   /** Sticky localhost port on the owning host only (not mesh-shared). */
   stickyPort?: number | null;
   /** Launch / rebuild hint on the owning host only (not mesh-shared). */
@@ -287,6 +296,7 @@ export const PLATFORMS: Platform[] = [
   "Unity",
   "Unreal",
   "Web",
+  "Native",
   "Viverse",
   "Consulting",
   "Other",
@@ -382,6 +392,7 @@ export function createEmptyProject(partial?: Partial<Project>): Project {
     previewUrl: null,
     liveUrl: null,
     host: null,
+    surface: null,
     stickyPort: null,
     launchCmd: null,
     lastBuildAt: null,

@@ -23,6 +23,8 @@ Portfolio project dashboard (Tauri) replacing day-to-day Unity Hub / VCC list us
 
 **Host ownership (hard rule):** each computer hosts a **different** project inventory. Ada ≠ Edgar ≠ Steve. A live Deez node only runs **Update Local / Run / sticky rebuild** for rows that live on that machine. Cross-host glance = **switch Tailscale MagicDNS peer** (or “All hosts” list filter for pathless stamps) — not one mirrored catalog of every sticky site on every box.
 
+**Product vs surface (hard rule):** one **row** = one launchable / deployable surface (folder, sticky PWA, Unity/Unreal project, native app, marketing site, …). Stacks differ: Web · Native · Unity · Unreal · site. One **product** (Emily, deac-online, …) can span **many rows** — website + app, or several apps — linked by a shared `siteId`. Ops verbs (Ship / Promote / Update Local) act **per surface**, never “rebuild the whole product.”
+
 **Three verbs (thin backends):**
 | Verb | Means | Backend |
 |--|--|--|
@@ -36,10 +38,11 @@ Portfolio project dashboard (Tauri) replacing day-to-day Unity Hub / VCC list us
 - [x] Same row: **Update Local** (fetch/pull + `dale-auto-rebuild` / `run.* --rebuild`)
 - [x] Shared `scripts/dale-auto-rebuild.sh` helper contract for Dock/`run.command`
 - [x] Per-host inventory: stamp `host`, default table = **This host**, mesh keeps sticky path/port local
+- [x] Product/surface model: shared `siteId` + optional `surface` label; Native platform; one row per face (Emily multi-app)
 - [ ] Pilot green on **deac-online** against live Ada OpenShip
 - [ ] Fleet cutover of more rows (only after pilot)
 
-**Non-goals:** second control-plane UI · GitHub Actions rebuilds · rebuild-on-every-save · Hermes Desktop replacement · federated “union all hosts into one live table” (peer switch is enough)
+**Non-goals:** second control-plane UI · GitHub Actions rebuilds · rebuild-on-every-save · Hermes Desktop replacement · federated “union all hosts into one live table” (peer switch is enough) · nested product tree UI (shared `siteId` is enough)
 
 ### Learn & Tools
 - ~~Re-introduce Learn / Tools nav when content exists~~ — superseded by Projects / Overview / Processes / Fuel / Settings tabs (`src/App.tsx`)

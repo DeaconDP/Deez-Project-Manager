@@ -305,19 +305,29 @@ export function ProjectEditModal({ project, open, onClose, onSave }: Props) {
             <fieldset className="form-section">
               <legend>Fleet / OpenShip</legend>
               <p className="form-hint">
-                Pilot registry for Ship Preview · Promote Live · Update Local.
-                Each computer hosts different projects — set Host to the owning
-                machine (ada / edgar / …). Leave blank for normal backlog rows.
+                One row = one surface (folder / app / site). Products like Emily
+                share a siteId across several rows (site + apps). Ops verbs act
+                per surface. Set Host to the owning machine.
               </p>
               <div className="form-row">
                 <label>
-                  siteId
+                  siteId (product)
                   <input
                     value={draft.siteId ?? ""}
                     onChange={(e) =>
                       update("siteId", e.target.value.trim() || null)
                     }
-                    placeholder="deac-online"
+                    placeholder="emily"
+                  />
+                </label>
+                <label>
+                  Surface
+                  <input
+                    value={draft.surface ?? ""}
+                    onChange={(e) =>
+                      update("surface", e.target.value.trim() || null)
+                    }
+                    placeholder="ios / android / site / editor"
                   />
                 </label>
                 <label>
@@ -329,10 +339,6 @@ export function ProjectEditModal({ project, open, onClose, onSave }: Props) {
                     }
                     placeholder="ada"
                   />
-                  <span className="form-hint">
-                    Owning machine — each host has different projects. Update
-                    Local only runs on that box.
-                  </span>
                 </label>
                 <label>
                   Sticky port

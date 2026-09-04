@@ -251,6 +251,7 @@ fn import_github_repos(app: AppHandle, username: Option<String>) -> Result<Impor
             preview_url: None,
             live_url: None,
             host: None,
+            surface: None,
             sticky_port: None,
             launch_cmd: None,
             last_build_at: None,

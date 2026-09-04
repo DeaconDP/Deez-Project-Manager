@@ -796,9 +796,14 @@ function EmptyValue() {
 function NamePathLine({ project }: { project: Project }) {
   const host = project.host?.trim();
   const site = project.siteId?.trim();
+  const surface = project.surface?.trim();
   const fleetHint =
-    host || site
-      ? [host, site, project.stickyPort ? `:${project.stickyPort}` : null]
+    host || site || surface
+      ? [
+          host,
+          site && surface ? `${site}/${surface}` : site || surface,
+          project.stickyPort ? `:${project.stickyPort}` : null,
+        ]
           .filter(Boolean)
           .join(" · ")
       : null;
