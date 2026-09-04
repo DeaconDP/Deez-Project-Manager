@@ -303,6 +303,106 @@ export function ProjectEditModal({ project, open, onClose, onSave }: Props) {
             </fieldset>
 
             <fieldset className="form-section">
+              <legend>Fleet / OpenShip</legend>
+              <p className="form-hint">
+                One row = one surface (folder / app / site). Products like Emily
+                share a siteId across several rows (site + apps). Ops verbs act
+                per surface. Set Host to the owning machine.
+              </p>
+              <div className="form-row">
+                <label>
+                  siteId (product)
+                  <input
+                    value={draft.siteId ?? ""}
+                    onChange={(e) =>
+                      update("siteId", e.target.value.trim() || null)
+                    }
+                    placeholder="emily"
+                  />
+                </label>
+                <label>
+                  Surface
+                  <input
+                    value={draft.surface ?? ""}
+                    onChange={(e) =>
+                      update("surface", e.target.value.trim() || null)
+                    }
+                    placeholder="ios / android / site / editor"
+                  />
+                </label>
+                <label>
+                  Host
+                  <input
+                    value={draft.host ?? ""}
+                    onChange={(e) =>
+                      update("host", e.target.value.trim() || null)
+                    }
+                    placeholder="ada"
+                  />
+                </label>
+                <label>
+                  Sticky port
+                  <input
+                    type="number"
+                    min={1}
+                    max={65535}
+                    value={draft.stickyPort ?? ""}
+                    onChange={(e) => {
+                      const n = Number(e.target.value);
+                      update(
+                        "stickyPort",
+                        e.target.value && Number.isFinite(n) ? n : null,
+                      );
+                    }}
+                    placeholder="8090"
+                  />
+                </label>
+              </div>
+              <label>
+                OpenShip project id
+                <input
+                  value={draft.openshipProjectId ?? ""}
+                  onChange={(e) =>
+                    update("openshipProjectId", e.target.value.trim() || null)
+                  }
+                  placeholder="proj_…"
+                />
+              </label>
+              <div className="form-row">
+                <label>
+                  Preview URL
+                  <input
+                    value={draft.previewUrl ?? ""}
+                    onChange={(e) =>
+                      update("previewUrl", e.target.value.trim() || null)
+                    }
+                    placeholder="https://…"
+                  />
+                </label>
+                <label>
+                  Live URL
+                  <input
+                    value={draft.liveUrl ?? ""}
+                    onChange={(e) =>
+                      update("liveUrl", e.target.value.trim() || null)
+                    }
+                    placeholder="https://…"
+                  />
+                </label>
+              </div>
+              <label>
+                Launch cmd (optional)
+                <input
+                  value={draft.launchCmd ?? ""}
+                  onChange={(e) =>
+                    update("launchCmd", e.target.value.trim() || null)
+                  }
+                  placeholder="./run.command"
+                />
+              </label>
+            </fieldset>
+
+            <fieldset className="form-section">
               <legend>Context</legend>
               <div className="form-row">
                 <label>

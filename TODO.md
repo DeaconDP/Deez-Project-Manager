@@ -110,3 +110,14 @@
 - [x] Optional shared-secret header on remote API (tailnet ACL still primary)
 - [x] Remote write: status / priority / kanban via existing `save_projects` path
 - [x] Settings peer list (MagicDNS names) + switch active node from phone
+
+## Fleet ops (OpenShip thin adapter)
+
+- [x] Project fleet fields: siteId / openshipProjectId / preview+live URLs / host / stickyPort / launchCmd / lastBuildAt
+- [x] Settings → OpenShip: API URL + PAT (credential store) + CLI status
+- [x] Row overflow (fleet rows only): Ship Preview · Promote Live · Update Local · OpenShip status · open URLs
+- [x] `scripts/dale-auto-rebuild.sh` shared helper contract
+- [x] Per-host inventory: stamp `host`, default **This host** filter, mesh keeps sticky path/port local (Ada ≠ Edgar)
+- [x] Product vs surface: shared `siteId` + `surface` label; Native platform; Emily-style multi-app = many rows
+- [ ] Wire deac-online pilot row against Ada OpenShip (needs Ada always-on + domain)
+- [ ] Rollback verb + site-ops health glance on the same row
