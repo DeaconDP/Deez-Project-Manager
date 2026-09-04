@@ -28,3 +28,19 @@ src-tauri/target
 *.sln
 *.sw?
 .tmp-verify/
+
+# Capacitor — keep native projects; sync regenerates web asset copies
+android/app/src/main/assets/public
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+android/.gradle
+android/**/build
+android/local.properties
+android/captures
+ios/App/App/public
+ios/App/App/capacitor.config.json
+ios/App/App/config.xml
+ios/App/Pods
+ios/DerivedData
+ios/App/App.xcworkspace/xcuserdata
+ios/App/App.xcodeproj/xcuserdata

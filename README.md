@@ -3,7 +3,7 @@
 Tauri portfolio project manager for Unity / Unreal / Web / consulting backlog — plus Ada-Monitor machine and AI Fuel views.
 
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue)
-![Platform: macOS · Windows · Linux · PWA](https://img.shields.io/badge/platform-macOS%20%20%7C%20%20Windows%20%20%7C%20%20Linux%20%20%7C%20%20PWA-informational)
+![Platform: macOS · Windows · Linux · PWA · Capacitor](https://img.shields.io/badge/platform-macOS%20%20%7C%20%20Windows%20%20%7C%20%20Linux%20%20%7C%20%20PWA%20%20%7C%20%20Capacitor-informational)
 
 ## Who it’s for
 
@@ -18,9 +18,25 @@ Builders juggling many local projects who want Hub/VCC-style lists, drag-and-dro
 | macOS | Double-click **`run.command`** |
 | Windows | Double-click **`run.bat`** |
 | Linux | `npm run tauri -- build` then run the AppImage/deb, or `npm run tauri -- dev` |
-| iPhone / Android | On a always-on box (e.g. Linux): `./scripts/serve-mesh.sh` → open the LAN URL → Add to Home Screen |
+| iPhone / Android (PWA) | On an always-on box: `./scripts/serve-mesh.sh` → open the LAN URL → Add to Home Screen; or Tailscale live-node URL from Settings |
+| iPhone / Android (native) | Capacitor shell around the same `dist/` — see **Native phone apps** below |
 
 Launches the **release** desktop app (not a browser tab). Dev HMR: `npm run tauri:dev` — use the native window, not `:5187` alone.
+
+### Native phone apps (Capacitor)
+
+Same React UI as the PWA, wrapped for TestFlight / Play Store. Not a second product.
+
+```bash
+npm install
+npm run native:sync          # vite build + cap sync into ios/ and android/
+npm run native:ios           # opens Xcode (macOS)
+npm run native:android       # opens Android Studio
+```
+
+- **iOS / TestFlight.** Needs a Mac with Xcode. Signing and Apple team membership: **d@worldbuild.io**. Bundle id `io.worldbuild.deez`.
+- **Android.** Open the `android/` project in Android Studio, run on a device/emulator, or build a release bundle there.
+- Verify scaffolding anytime: `npm run native:verify`.
 
 ### Windows shortcuts
 

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Deez PM</string>
+    <string name="title_activity_main">Deez PM</string>
+    <string name="package_name">io.worldbuild.deez</string>
+    <string name="custom_url_scheme">io.worldbuild.deez</string>
+</resources>
