@@ -1112,26 +1112,6 @@ function App() {
                               "Refresh"
                             )}
                           </button>
-                          {behindToUpdate.length > 0 ||
-                          gitUpdateActiveCount > 0 ? (
-                            <button
-                              type="button"
-                              className="btn-secondary git-update-all-btn"
-                              disabled={behindToUpdate.length === 0}
-                              aria-busy={gitUpdateActiveCount > 0}
-                              title="Pull + rebuild each behind project, one at a time"
-                              onClick={() => handleUpdateAllBehind()}
-                            >
-                              {gitUpdateActiveCount > 0 ? (
-                                <span className="btn-busy-label">
-                                  <Spinner size="sm" />
-                                  Updating {gitUpdateActiveCount}…
-                                </span>
-                              ) : (
-                                `Update all (${behindToUpdate.length})`
-                              )}
-                            </button>
-                          ) : null}
                           <button
                             type="button"
                             className="btn-primary toolbar-add"
@@ -1149,6 +1129,26 @@ function App() {
                             )}
                           </button>
                         </>
+                      ) : null}
+                      {behindToUpdate.length > 0 ||
+                      gitUpdateActiveCount > 0 ? (
+                        <button
+                          type="button"
+                          className="btn-secondary git-update-all-btn"
+                          disabled={behindToUpdate.length === 0}
+                          aria-busy={gitUpdateActiveCount > 0}
+                          title="Pull + rebuild each behind project, one at a time"
+                          onClick={() => handleUpdateAllBehind()}
+                        >
+                          {gitUpdateActiveCount > 0 ? (
+                            <span className="btn-busy-label">
+                              <Spinner size="sm" />
+                              Updating {gitUpdateActiveCount}…
+                            </span>
+                          ) : (
+                            `Update all (${behindToUpdate.length})`
+                          )}
+                        </button>
                       ) : null}
 
                     </div>
