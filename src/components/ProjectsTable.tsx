@@ -62,6 +62,10 @@ import {
 import { PrioritySelect } from "./PrioritySelect";
 import { StatusSelect } from "./StatusSelect";
 import { Spinner } from "./Spinner";
+import {
+  projectNeedsGitUpdate,
+  type GitUpdateJob,
+} from "../lib/gitUpdate";
 
 /** Cheap: lock X so list reorders stay vertical without @dnd-kit/modifiers. */
 const restrictToVerticalAxis: Modifier = ({ transform }) => ({
@@ -332,6 +336,7 @@ interface RowProps {
     | "updateLocal"
     | "opsStatus"
     | null;
+  gitUpdateJob?: GitUpdateJob | null;
   archivedView: boolean;
   /** First-paint enter only — not on header sort reorder. */
   animateEnter?: boolean;
@@ -561,7 +566,7 @@ function RowOverflowMenu({
                   <button
                     type="button"
                     role="menuitem"
-                    disabled={rowBusy || !project.localPath}
+                    disabled={rowBusy || !project.localPath || updateBusy}
                     aria-busy={updateBusy}
                     onClick={() => run(() => onUpdateLocal?.(project))}
                   >
@@ -603,6 +608,23 @@ function RowOverflowMenu({
                     </button>
                   </li>
                 ) : null}
+              </>
+            ) : onUpdateLocal &&
+              projectNeedsGitUpdate(project) &&
+              project.localPath ? (
+              <>
+                <li role="separator" className="row-overflow-sep" />
+                <li role="none">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={rowBusy || updateBusy}
+                    aria-busy={updateBusy}
+                    onClick={() => run(() => onUpdateLocal(project))}
+                  >
+                    {updateBusy ? "Updating…" : "Update Local"}
+                  </button>
+                </li>
               </>
             ) : null}
 
@@ -666,6 +688,7 @@ function ProjectActions({
   project,
   busyId,
   busyAction,
+  gitUpdateJob,
   archivedView,
   compact,
   onOpen,
@@ -697,7 +720,10 @@ function ProjectActions({
   const revealBusy = rowBusy && busyAction === "reveal";
   const shipBusy = rowBusy && busyAction === "ship";
   const promoteBusy = rowBusy && busyAction === "promote";
-  const updateBusy = rowBusy && busyAction === "updateLocal";
+  const updateBusy =
+    (rowBusy && busyAction === "updateLocal") ||
+    gitUpdateJob?.phase === "queued" ||
+    gitUpdateJob?.phase === "running";
   const statusBusy = rowBusy && busyAction === "opsStatus";
   const btnClass = compact ? "btn-sm" : undefined;
   const hostActions = !!(onOpen && onRun && onReveal);
@@ -875,6 +901,9 @@ function ProjectDataCells({
   category,
   actions,
   onOpenBoard,
+  onUpdateLocal,
+  gitUpdateJob,
+  archivedView = false,
   iconOnly = false,
 }: {
   project: Project;
@@ -885,10 +914,21 @@ function ProjectDataCells({
   category: ReactNode;
   actions: ReactNode;
   onOpenBoard?: (project: Project) => void;
+  onUpdateLocal?: (project: Project) => void;
+  gitUpdateJob?: GitUpdateJob | null;
+  archivedView?: boolean;
   iconOnly?: boolean;
 }) {
   const ghLabel = githubStatusLabel(project.githubStatus, project);
   const ghTip = githubStatusTooltip(project);
+  const showUpdate =
+    !archivedView &&
+    !!onUpdateLocal &&
+    projectNeedsGitUpdate(project) &&
+    gitUpdateJob?.phase !== "running" &&
+    gitUpdateJob?.phase !== "queued";
+  const updating =
+    gitUpdateJob?.phase === "queued" || gitUpdateJob?.phase === "running";
 
   return (
     <>
@@ -942,25 +982,60 @@ function ProjectDataCells({
       <Cell className="col-status">{status}</Cell>
       <Cell className="col-category">{category}</Cell>
       <Cell className="col-github">
-        {project.githubStatus === "none" ? (
-          <EmptyValue />
-        ) : iconOnly ? (
-          <span
-            className={`gh-status gh-icon-only gh-${project.githubStatus}`}
-            title={ghTip}
-            aria-label={ghTip}
-          >
-            <GithubStatusIcon status={project.githubStatus} />
-          </span>
-        ) : (
-          <span
-            className={`gh-status gh-${project.githubStatus}`}
-            title={ghTip}
-          >
-            <span className="gh-dot" aria-hidden="true" />
-            <span className="gh-label">{ghLabel}</span>
-          </span>
-        )}
+        <div className="gh-cell">
+          {project.githubStatus === "none" ? (
+            <EmptyValue />
+          ) : iconOnly ? (
+            <span
+              className={`gh-status gh-icon-only gh-${project.githubStatus}`}
+              title={ghTip}
+              aria-label={ghTip}
+            >
+              <GithubStatusIcon status={project.githubStatus} />
+            </span>
+          ) : (
+            <span
+              className={`gh-status gh-${project.githubStatus}`}
+              title={ghTip}
+            >
+              <span className="gh-dot" aria-hidden="true" />
+              <span className="gh-label">{ghLabel}</span>
+            </span>
+          )}
+          {showUpdate ? (
+            <button
+              type="button"
+              className="btn-sm gh-update-btn"
+              title="Pull latest and rebuild"
+              onClick={() => onUpdateLocal?.(project)}
+            >
+              Update
+            </button>
+          ) : null}
+          {updating ? (
+            <span className="gh-update-phase" title={gitUpdateJob?.message}>
+              {gitUpdateJob?.phase === "queued" ? "Queued" : "Updating…"}
+            </span>
+          ) : null}
+          {gitUpdateJob ? (
+            <div
+              className={`git-update-bar is-${gitUpdateJob.phase}`}
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={gitUpdateJob.pct}
+              aria-label={
+                gitUpdateJob.message ||
+                `Update ${gitUpdateJob.phase}`
+              }
+            >
+              <div
+                className="git-update-bar__fill"
+                style={{ width: `${gitUpdateJob.pct}%` }}
+              />
+            </div>
+          ) : null}
+        </div>
       </Cell>
       <Cell className="col-actions">{actions}</Cell>
     </>
@@ -976,6 +1051,9 @@ function InteractiveRowCells({
   onStatusChange,
   onCategoryChange,
   onOpenBoard,
+  onUpdateLocal,
+  gitUpdateJob,
+  archivedView,
   actions,
   iconOnly = false,
 }: {
@@ -987,6 +1065,9 @@ function InteractiveRowCells({
   onStatusChange: (id: string, status: Status) => void;
   onCategoryChange: (id: string, category: Category) => void;
   onOpenBoard?: (project: Project) => void;
+  onUpdateLocal?: (project: Project) => void;
+  gitUpdateJob?: GitUpdateJob | null;
+  archivedView?: boolean;
   actions: ReactNode;
   iconOnly?: boolean;
 }) {
@@ -994,6 +1075,9 @@ function InteractiveRowCells({
     <ProjectDataCells
       project={project}
       onOpenBoard={onOpenBoard}
+      onUpdateLocal={onUpdateLocal}
+      gitUpdateJob={gitUpdateJob}
+      archivedView={archivedView}
       iconOnly={iconOnly}
       drag={
         <button
@@ -1177,6 +1261,7 @@ const ProjectRow = memo(function ProjectRow({
   project,
   busyId,
   busyAction,
+  gitUpdateJob,
   archivedView,
   animateEnter = false,
   index = 0,
@@ -1221,7 +1306,7 @@ const ProjectRow = memo(function ProjectRow({
       ref={setNodeRef}
       style={rowStyle}
       role="row"
-      className={`project-row${animateEnter ? " enter-fade" : ""} priority-row-${project.priority.toLowerCase()}${gitRowClass(project.githubStatus)}${isDragging ? " is-dragging" : ""}`}
+      className={`project-row${animateEnter ? " enter-fade" : ""} priority-row-${project.priority.toLowerCase()}${gitRowClass(project.githubStatus)}${isDragging ? " is-dragging" : ""}${gitUpdateJob ? ` git-updating is-${gitUpdateJob.phase}` : ""}`}
       data-dragging={isDragging || undefined}
     >
       <InteractiveRowCells
@@ -1229,6 +1314,9 @@ const ProjectRow = memo(function ProjectRow({
         isDragging={isDragging}
         dragHandleProps={dragHandleProps ?? {}}
         iconOnly={iconOnly}
+        archivedView={archivedView}
+        gitUpdateJob={gitUpdateJob}
+        onUpdateLocal={onUpdateLocal}
         onToggleFavorite={onToggleFavorite}
         onPriorityChange={onPriorityChange}
         onStatusChange={onStatusChange}
@@ -1239,6 +1327,7 @@ const ProjectRow = memo(function ProjectRow({
             project={project}
             busyId={busyId}
             busyAction={busyAction}
+            gitUpdateJob={gitUpdateJob}
             archivedView={archivedView}
             compact
             onOpen={onOpen}
@@ -1364,6 +1453,7 @@ interface TableProps {
     | "updateLocal"
     | "opsStatus"
     | null;
+  gitUpdateJobs?: Record<string, GitUpdateJob>;
   archivedView: boolean;
   emptyMessage?: string;
   emptyHint?: string;
@@ -1395,6 +1485,7 @@ export function ProjectsTable({
   layout,
   busyId,
   busyAction,
+  gitUpdateJobs,
   archivedView,
   emptyMessage = "No projects yet.",
   emptyHint = "Add a local folder or import from Hub, VCC, or GitHub.",
@@ -1664,6 +1755,7 @@ export function ProjectsTable({
                 project={project}
                 index={animateEnter ? index : 0}
                 reduceMotion={reduceMotion}
+                gitUpdateJob={gitUpdateJobs?.[project.id] ?? null}
                 {...sharedProps}
               />
             ) : (
@@ -1671,6 +1763,7 @@ export function ProjectsTable({
                 key={project.id}
                 project={project}
                 index={animateEnter ? index : 0}
+                gitUpdateJob={gitUpdateJobs?.[project.id] ?? null}
                 {...sharedProps}
               />
             ),
