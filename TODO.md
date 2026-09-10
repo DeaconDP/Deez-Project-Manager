@@ -113,6 +113,10 @@
 - [x] Settings peer list (MagicDNS names) + switch active node from phone
 - [x] Phone PWA chrome: hide desktop-only Import/Add/Sync/Open/Run/Reveal; soft-fail Settings without `/api`; safe-area insets
 
+## Agent verify
+
+- [x] `npm test` (real `src/` unit + static) and `npm run test:agent` (doctor + browser). Evidence in `.tmp-verify/<runId>/`. Skill at `.cursor/skills/verify-deez/`.
+
 ## Native phone shell (Capacitor)
 
 - [x] Capacitor config `io.worldbuild.deez` + `ios/` + `android/` wrapping Vite `dist/`

@@ -22,7 +22,9 @@ src-tauri/target
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
-.cursor
+.cursor/*
+!.cursor/skills/
+!.cursor/skills/**
 .idea
 .DS_Store
 *.suo

@@ -1307,6 +1307,8 @@ const ProjectRow = memo(function ProjectRow({
       style={rowStyle}
       role="row"
       className={`project-row${animateEnter ? " enter-fade" : ""} priority-row-${project.priority.toLowerCase()}${gitRowClass(project.githubStatus)}${isDragging ? " is-dragging" : ""}${gitUpdateJob ? ` git-updating is-${gitUpdateJob.phase}` : ""}`}
+      data-testid="project-row"
+      data-project-id={project.id}
       data-dragging={isDragging || undefined}
     >
       <InteractiveRowCells

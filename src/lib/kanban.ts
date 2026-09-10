@@ -9,7 +9,7 @@ import {
   type Task,
   type TaskComment,
   type TrelloImportResult,
-} from "../types";
+} from "../types.ts";
 
 export function tasksForProject(tasks: Task[], projectId: string): Task[] {
   return tasks

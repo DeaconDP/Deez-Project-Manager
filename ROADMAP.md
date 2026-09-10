@@ -150,6 +150,9 @@ Portfolio project dashboard (Tauri) replacing day-to-day Unity Hub / VCC list us
 
 ## Deferred
 
+- 2026-09-10: Loopback `/api/doctor` + `DEEZ_REMOTE_BIND=127.0.0.1` for desktop-agent workflows — cloud agents stay on browser `npm run test:agent`; Tailscale CGNAT bind remains default (`src-tauri/src/remote/server.rs`, `tests/harness/`).
+- 2026-09-10: Env-gated app NDJSON logging (`DEEZ_LOG=json`) — evidence stays at the browser boundary; do not reintroduce metrics-path agent I/O (`TODO.md` Agent verify).
+- 2026-09-10: Mesh-sync browser proof with mocked gist routes — needs `page.route` after basic suite; unit coverage already imports `src/lib/mesh.ts` (`tests/browser/`, `tests/unit/mesh.test.ts`).
 - 2026-09-03: Fleet cutover of all `/srv/www` + sticky-port rows — wait for deac-online pilot green on Ada OpenShip (`ROADMAP.md` Fleet ops hub).
 - 2026-09-03: OpenShip dashboard / site-ops as deploy home — Deez-PM is the only happy-path UI; backends stay headless (`src-tauri/src/openship.rs`).
 - 2026-09-03: GitHub Actions as rebuild path — local `dale-auto-rebuild` + OpenShip CLI only (`scripts/dale-auto-rebuild.sh`).
