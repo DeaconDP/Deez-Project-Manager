@@ -68,7 +68,7 @@ export const verify = {
     page.on("console", (msg) => {
       if (msg.type() !== "error") return;
       const text = msg.text();
-      if (/Failed to load resource|404 \(Not Found\)|net::ERR_/.test(text)) return;
+      if (isExpectedSameOriginApiMissConsole(text)) return;
       faults.push(`console.error: ${text}`);
     });
     page.on("response", (res) => {
@@ -81,7 +81,7 @@ export const verify = {
         return;
       }
       if (url.origin !== server.origin) return;
-      if (url.pathname.startsWith("/api/")) return;
+      if (isSameOriginApiPath(url.pathname)) return;
       faults.push(`http ${status} ${url.pathname}`);
     });
 
@@ -206,6 +206,14 @@ export const verify = {
     return app;
   },
 };
+
+function isExpectedSameOriginApiMissConsole(text: string): boolean {
+  return /Failed to load resource|404 \(Not Found\)|net::ERR_/.test(text);
+}
+
+function isSameOriginApiPath(pathname: string): boolean {
+  return pathname.startsWith("/api/");
+}
 
 function tabLabel(tab: NonNullable<Seed["tab"]>): string {
   switch (tab) {
