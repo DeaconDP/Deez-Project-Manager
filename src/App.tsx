@@ -646,6 +646,8 @@ function App() {
       });
 
       try {
+        // ponytail: let React paint queued→running before the await blocks
+        await new Promise((r) => window.setTimeout(r, 350));
         const result = await updateLocalProject(project.localPath);
         if (!result.ok) throw new Error(result.message);
 
@@ -1225,7 +1227,7 @@ function App() {
                     onRestore={handleRestore}
                     onShipPreview={onShipPreview}
                     onPromoteLive={onPromoteLive}
-                    onUpdateLocal={desktop ? onUpdateLocal : undefined}
+                    onUpdateLocal={onUpdateLocal}
                     onOpsStatus={onOpsStatus}
                     onOpenPreviewUrl={onOpenPreviewUrl}
                     onOpenLiveUrl={onOpenLiveUrl}
