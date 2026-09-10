@@ -67,7 +67,6 @@ export const verify = {
     page.on("console", (msg) => {
       if (msg.type() !== "error") return;
       const text = msg.text();
-      // Mesh-only PWA 404s /api/* on purpose. Chrome logs that as console.error.
       if (/Failed to load resource|404 \(Not Found\)|net::ERR_/.test(text)) return;
       faults.push(`console.error: ${text}`);
     });

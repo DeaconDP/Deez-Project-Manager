@@ -7,9 +7,9 @@ description: Prove a Deez Project Manager change works. Use when you changed src
 # Verify Deez
 
 ```bash
-npm ci            # once per VM; node_modules starts empty
-npm test          # fast: real-module unit tests + static residue
-npm run test:agent  # adds the browser smoke; writes .tmp-verify/<runId>/
+npm ci
+npm test
+npm run test:agent
 ```
 
 `test:agent` prints a doctor block first (node, chrome, port 5187 owner, runtime mode, git head, evidence dir). Read it before reading failures. Most red runs are a held port or a missing `npm ci`.

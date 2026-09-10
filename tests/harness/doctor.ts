@@ -72,9 +72,7 @@ async function readListener(
     const { stdout } = await execFileAsync("ss", ["-lptn", `sport = :${port}`]);
     const match = stdout.match(/pid=(\d+)/);
     if (match) return describePid(Number(match[1]));
-  } catch {
-    /* try lsof */
-  }
+  } catch {}
   try {
     const { stdout } = await execFileAsync("lsof", [
       "-nP",
@@ -84,9 +82,7 @@ async function readListener(
     ]);
     const pid = Number(stdout.trim().split("\n")[0]);
     if (pid) return describePid(pid);
-  } catch {
-    /* unknown owner */
-  }
+  } catch {}
   return null;
 }
 
@@ -99,9 +95,7 @@ function describePid(pid: number): {
   let cwd: string | null = null;
   try {
     cmd = readlinkSync(`/proc/${pid}/exe`);
-  } catch {
-    /* keep fallback */
-  }
+  } catch {}
   try {
     cwd = readlinkSync(`/proc/${pid}/cwd`);
   } catch {
@@ -112,9 +106,7 @@ function describePid(pid: number): {
       .replace(/\0/g, " ")
       .trim();
     if (args) cmd = args.slice(0, 180);
-  } catch {
-    /* keep exe */
-  }
+  } catch {}
   return { pid, cmd, cwd };
 }
 

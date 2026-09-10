@@ -68,9 +68,7 @@ async function boot(): Promise<Slot> {
   const stop = () => {
     try {
       child.kill("SIGTERM");
-    } catch {
-      /* already gone */
-    }
+    } catch {}
   };
   process.on("exit", stop);
   process.on("SIGINT", () => {
