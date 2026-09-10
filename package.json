@@ -12,7 +12,10 @@
     "native:android": "npm run native:sync && npx cap open android",
     "native:ios": "npm run native:sync && npx cap open ios",
     "native:add:ios": "npx cap add ios",
-    "native:verify": "node scripts/verify-native-shell.mjs"
+    "native:verify": "node scripts/verify-native-shell.mjs",
+    "test": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test \"tests/{unit,static}/**/*.test.ts\"",
+    "test:browser": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test-concurrency=1 --test-timeout=45000 --test \"tests/browser/**/*.test.ts\"",
+    "test:agent": "node --experimental-strip-types --disable-warning=ExperimentalWarning tests/harness/agent.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.1",
@@ -36,6 +39,7 @@
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",
+    "playwright-core": "^1.63.0",
     "typescript": "~5.8.3",
     "vite": "^7.0.4"
   }
