@@ -49,6 +49,12 @@ import {
   withHostStamp,
 } from "./types";
 import { defaultDeviceName } from "./lib/mesh";
+import {
+  enqueueGitUpdateIds,
+  gitUpdatePct,
+  projectNeedsGitUpdate,
+  type GitUpdateJob,
+} from "./lib/gitUpdate";
 import "./App.css";
 import "./monitor/monitor.css";
 
@@ -166,6 +172,15 @@ function App() {
     null,
   );
   const [rowBusy, setRowBusy] = useState<RowBusy | null>(null);
+  const [gitUpdateJobs, setGitUpdateJobs] = useState<
+    Record<string, GitUpdateJob>
+  >({});
+  const gitUpdateQueueRef = useRef<string[]>([]);
+  const gitUpdateJobsRef = useRef<Record<string, GitUpdateJob>>({});
+  const gitUpdateRunningRef = useRef(false);
+  const projectsRef = useRef(projects);
+  projectsRef.current = projects;
+  gitUpdateJobsRef.current = gitUpdateJobs;
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<Project | null>(null);
   const [listView, setListView] = useState<"active" | "archive">("active");
@@ -247,6 +262,25 @@ function App() {
   const archivedCount = useMemo(
     () => projects.filter((p) => p.archived).length,
     [projects],
+  );
+
+  const behindToUpdate = useMemo(
+    () =>
+      projects.filter(
+        (p) =>
+          !p.archived &&
+          projectOnThisHost(p, thisHost) &&
+          projectNeedsGitUpdate(p),
+      ),
+    [projects, thisHost],
+  );
+
+  const gitUpdateActiveCount = useMemo(
+    () =>
+      Object.values(gitUpdateJobs).filter(
+        (j) => j.phase === "queued" || j.phase === "running",
+      ).length,
+    [gitUpdateJobs],
   );
 
   useEffect(() => {
@@ -578,19 +612,43 @@ function App() {
     setRowBusy(null);
   }
 
-  async function handleUpdateLocal(project: Project) {
-    if (!project.localPath) {
-      openAction.setFeedback({
-        kind: "error",
-        message: "Set a local path before Update Local.",
+  const { setFeedback: setOpenFeedback } = openAction;
+
+  const drainGitUpdates = useCallback(async () => {
+    if (gitUpdateRunningRef.current) return;
+    gitUpdateRunningRef.current = true;
+    let okCount = 0;
+    let failCount = 0;
+    let lastFailMessage = "";
+
+    const patchJob = (id: string, job: GitUpdateJob | null) => {
+      setGitUpdateJobs((prev) => {
+        const next = { ...prev };
+        if (job) next[id] = job;
+        else delete next[id];
+        gitUpdateJobsRef.current = next;
+        return next;
       });
-      return;
-    }
-    setRowBusy({ id: project.id, kind: "updateLocal" });
-    await openAction.run(
-      async () => {
-        const result = await updateLocalProject(project.localPath!);
+    };
+
+    while (gitUpdateQueueRef.current.length > 0) {
+      const id = gitUpdateQueueRef.current.shift()!;
+      const project = projectsRef.current.find((p) => p.id === id);
+      if (!project?.localPath?.trim()) {
+        patchJob(id, null);
+        continue;
+      }
+
+      patchJob(id, {
+        phase: "running",
+        pct: gitUpdatePct("running"),
+        message: "Updating…",
+      });
+
+      try {
+        const result = await updateLocalProject(project.localPath);
         if (!result.ok) throw new Error(result.message);
+
         if (result.lastBuildAt) {
           upsert({
             ...project,
@@ -598,11 +656,101 @@ function App() {
             updatedAt: new Date().toISOString(),
           });
         }
-        return { message: result.message, persist: true };
-      },
-      { loading: "Updating local…" },
-    );
-    setRowBusy(null);
+
+        // Optimistic clear of behind — Refresh can re-probe later.
+        applyGitSyncUpdate({
+          id: project.id,
+          githubStatus: project.gitDirty ? "dirty" : "clean",
+          gitAhead: 0,
+          gitBehind: 0,
+          gitBranch: project.gitBranch ?? null,
+          gitDirty: project.gitDirty ?? false,
+        });
+
+        okCount += 1;
+        patchJob(id, {
+          phase: "done",
+          pct: gitUpdatePct("done"),
+          message: result.message,
+        });
+        window.setTimeout(() => {
+          setGitUpdateJobs((prev) => {
+            if (prev[id]?.phase !== "done") return prev;
+            const next = { ...prev };
+            delete next[id];
+            gitUpdateJobsRef.current = next;
+            return next;
+          });
+        }, 2200);
+      } catch (e) {
+        failCount += 1;
+        lastFailMessage = e instanceof Error ? e.message : String(e);
+        patchJob(id, {
+          phase: "error",
+          pct: gitUpdatePct("error"),
+          message: lastFailMessage,
+        });
+      }
+    }
+
+    gitUpdateRunningRef.current = false;
+
+    if (okCount + failCount === 0) return;
+    if (failCount === 0) {
+      setOpenFeedback({
+        kind: "success",
+        message:
+          okCount === 1
+            ? "Local update finished"
+            : `Updated ${okCount} projects`,
+        persist: true,
+      });
+      return;
+    }
+    setOpenFeedback({
+      kind: "error",
+      message:
+        okCount === 0
+          ? lastFailMessage || "Update failed"
+          : `Updated ${okCount}, ${failCount} failed`,
+      persist: true,
+    });
+  }, [applyGitSyncUpdate, setOpenFeedback, upsert]);
+
+  const enqueueGitUpdates = useCallback(
+    (targets: Project[]) => {
+      const ids = targets
+        .filter((p) => p.localPath?.trim())
+        .map((p) => p.id);
+      if (ids.length === 0) return;
+      const { queue, jobs } = enqueueGitUpdateIds(
+        gitUpdateQueueRef.current,
+        gitUpdateJobsRef.current,
+        ids,
+      );
+      gitUpdateQueueRef.current = queue;
+      gitUpdateJobsRef.current = jobs;
+      setGitUpdateJobs(jobs);
+      void drainGitUpdates();
+    },
+    [drainGitUpdates],
+  );
+
+  function handleUpdateLocal(project: Project) {
+    if (!project.localPath) {
+      setOpenFeedback({
+        kind: "error",
+        message: "Set a local path before Update Local.",
+      });
+      return;
+    }
+    // Non-blocking: queue runs in background so the user can keep working.
+    enqueueGitUpdates([project]);
+  }
+
+  function handleUpdateAllBehind() {
+    if (behindToUpdate.length === 0) return;
+    enqueueGitUpdates(behindToUpdate);
   }
 
   async function handleOpsStatus(project: Project) {
@@ -831,6 +979,16 @@ function App() {
         ))}
       </nav>
 
+      {gitUpdateActiveCount > 0 ? (
+        <div className="git-update-banner" role="status" aria-live="polite">
+          <Spinner size="sm" />
+          <span>
+            Updating {gitUpdateActiveCount} project
+            {gitUpdateActiveCount === 1 ? "" : "s"} in background — keep working
+          </span>
+        </div>
+      ) : null}
+
       <main
         className={
           tab === "projects" ? "main" : "main main--monitor"
@@ -952,6 +1110,26 @@ function App() {
                               "Refresh"
                             )}
                           </button>
+                          {behindToUpdate.length > 0 ||
+                          gitUpdateActiveCount > 0 ? (
+                            <button
+                              type="button"
+                              className="btn-secondary git-update-all-btn"
+                              disabled={behindToUpdate.length === 0}
+                              aria-busy={gitUpdateActiveCount > 0}
+                              title="Pull + rebuild each behind project, one at a time"
+                              onClick={() => handleUpdateAllBehind()}
+                            >
+                              {gitUpdateActiveCount > 0 ? (
+                                <span className="btn-busy-label">
+                                  <Spinner size="sm" />
+                                  Updating {gitUpdateActiveCount}…
+                                </span>
+                              ) : (
+                                `Update all (${behindToUpdate.length})`
+                              )}
+                            </button>
+                          ) : null}
                           <button
                             type="button"
                             className="btn-primary toolbar-add"
@@ -1008,6 +1186,7 @@ function App() {
                     layout={layout}
                     busyId={rowBusy?.id ?? null}
                     busyAction={rowBusy?.kind ?? null}
+                    gitUpdateJobs={gitUpdateJobs}
                     archivedView={listView === "archive"}
                     emptyMessage={
                       listView === "archive"
@@ -1046,7 +1225,7 @@ function App() {
                     onRestore={handleRestore}
                     onShipPreview={onShipPreview}
                     onPromoteLive={onPromoteLive}
-                    onUpdateLocal={onUpdateLocal}
+                    onUpdateLocal={desktop ? onUpdateLocal : undefined}
                     onOpsStatus={onOpsStatus}
                     onOpenPreviewUrl={onOpenPreviewUrl}
                     onOpenLiveUrl={onOpenLiveUrl}

@@ -63,6 +63,7 @@
 - [x] Git sync fields (`gitAhead`/`gitBehind`/`gitBranch`/`gitDirty`); sync status beats dirty
 - [x] Explicit ahead/behind/diverged row outlines + count labels in GitHub column
 - [x] Staggered background `git fetch` by priority after Refresh; `git-sync-updated` UI merge
+- [x] One-click Update on behind rows + Update all (sequential queue, per-row progress, non-blocking)
 - [x] Responsiveness: fast `get_projects` + background `heal_project_engines`
 - [x] Responsiveness: bulk `check_paths_exist` prune (no sequential probe)
 - [x] Responsiveness: parallel git refresh; engine-only Sync enrich (git remote only for new/link)

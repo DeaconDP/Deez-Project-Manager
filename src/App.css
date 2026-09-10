@@ -344,6 +344,18 @@ button[aria-busy="true"]:disabled {
   flex-shrink: 0;
 }
 
+.git-update-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 20px;
+  font-size: 0.8rem;
+  color: #ffc857;
+  background: rgba(255, 200, 87, 0.08);
+  border-bottom: 1px solid color-mix(in srgb, #ffc857 35%, var(--border));
+  flex-shrink: 0;
+}
+
 .app-tab {
   appearance: none;
   border: 0;
@@ -1804,20 +1816,102 @@ button[aria-busy="true"]:disabled {
   color: #9aa0b0;
 }
 
+.gh-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+  width: 100%;
+}
+
+.gh-cell .gh-status {
+  max-width: 100%;
+}
+
+.gh-update-btn {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  border-color: color-mix(in srgb, #ffc857 55%, var(--border));
+  color: #ffc857;
+  background: rgba(255, 200, 87, 0.1);
+}
+
+.gh-update-btn:hover:not(:disabled) {
+  border-color: #ffc857;
+  background: rgba(255, 200, 87, 0.18);
+}
+
+.gh-update-phase {
+  font-size: 0.68rem;
+  color: var(--muted);
+  font-family: var(--font-mono);
+}
+
+.git-update-bar {
+  width: 100%;
+  height: 3px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.git-update-bar__fill {
+  height: 100%;
+  background: #ffc857;
+  transition: width 0.25s ease;
+}
+
+.git-update-bar.is-running .git-update-bar__fill {
+  background: linear-gradient(
+    90deg,
+    #ffc857 0%,
+    #ffe0a0 45%,
+    #ffc857 100%
+  );
+  background-size: 200% 100%;
+  animation: git-update-shimmer 1.1s linear infinite;
+}
+
+.git-update-bar.is-done .git-update-bar__fill {
+  background: var(--status-done);
+}
+
+.git-update-bar.is-error .git-update-bar__fill {
+  background: var(--danger);
+}
+
+.git-update-bar.is-queued .git-update-bar__fill {
+  background: color-mix(in srgb, #ffc857 55%, var(--muted));
+}
+
+@keyframes git-update-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
 /* Sync-attention outline — priority left bar stays via box-shadow */
 .project-row.git-row-behind {
   outline: 1.5px solid color-mix(in srgb, #ffc857 88%, transparent);
   outline-offset: -2px;
+  background: color-mix(in srgb, #ffc857 7%, transparent);
 }
 
 .project-row.git-row-ahead {
   outline: 1.5px solid color-mix(in srgb, var(--accent) 75%, transparent);
   outline-offset: -2px;
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
 }
 
 .project-row.git-row-diverged {
   outline: 1.5px solid color-mix(in srgb, var(--accent-2) 80%, transparent);
   outline-offset: -2px;
+  background: color-mix(in srgb, var(--accent-2) 6%, transparent);
 }
 
 .empty-state {
@@ -2501,6 +2595,10 @@ button[aria-busy="true"]:disabled {
 
   .skeleton-bar {
     background: var(--surface-2);
+  }
+
+  .git-update-bar.is-running .git-update-bar__fill {
+    animation: none;
   }
 }
 
