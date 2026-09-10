@@ -3,7 +3,7 @@ import { after, type TestContext } from "node:test";
 import type { Page } from "playwright-core";
 import type { Project, Task } from "../../src/types.ts";
 import { closeBrowser, useBrowser } from "./chrome.ts";
-import { useDevServer } from "./devServer.ts";
+import { stopLaunchedServer, useDevServer } from "./devServer.ts";
 import { evidenceDir, writeBytes, writeJson } from "./evidence.ts";
 import { seedStorage } from "./seed.ts";
 
@@ -35,6 +35,7 @@ export interface App {
 
 after(async () => {
   await closeBrowser();
+  await stopLaunchedServer();
 });
 
 export const verify = {

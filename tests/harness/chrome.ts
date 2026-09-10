@@ -24,7 +24,9 @@ export async function closeBrowser(): Promise<void> {
   try {
     const browser = await pending;
     await browser.close();
-  } catch {}
+  } catch {
+    /* already closed */
+  }
 }
 
 export async function findChrome(): Promise<{ path: string; version: string }> {

@@ -25,6 +25,7 @@ export async function useDevServer(): Promise<DevServer> {
 export async function stopLaunchedServer(): Promise<void> {
   if (!slot) return;
   const live = await slot;
+  slot = null;
   if (live.child) {
     live.child.kill("SIGTERM");
     live.child = null;
@@ -61,24 +62,18 @@ async function boot(): Promise<Slot> {
     {
       cwd: REPO_ROOT,
       env: { ...process.env, BROWSER: "none" },
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: "ignore",
     },
   );
 
   const stop = () => {
     try {
       child.kill("SIGTERM");
-    } catch {}
+    } catch {
+      /* already gone */
+    }
   };
   process.on("exit", stop);
-  process.on("SIGINT", () => {
-    stop();
-    process.exit(130);
-  });
-  process.on("SIGTERM", () => {
-    stop();
-    process.exit(143);
-  });
 
   try {
     await waitHealthy(origin, child);
