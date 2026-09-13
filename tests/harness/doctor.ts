@@ -31,7 +31,7 @@ export interface DoctorReport {
 
 export function verifyPort(): number {
   const raw = process.env.DEEZ_VERIFY_PORT;
-  if (!raw) return 5187;
+  if (!raw) return 5194;
   const port = Number(raw);
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     throw new DoctorError(VERIFY.PORT, `invalid DEEZ_VERIFY_PORT=${raw}`);

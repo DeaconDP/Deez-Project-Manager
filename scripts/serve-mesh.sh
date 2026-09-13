@@ -3,7 +3,7 @@
 # Usage: ./scripts/serve-mesh.sh   (builds if dist/ missing)
 set -euo pipefail
 cd "$(dirname "$0")/.."
-PORT="${PORT:-5187}"
+PORT="${PORT:-5194}"
 if [[ ! -d dist ]]; then
   npm run build
 fi

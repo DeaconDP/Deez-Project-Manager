@@ -21,7 +21,7 @@ Builders juggling many local projects who want Hub/VCC-style lists, drag-and-dro
 | iPhone / Android (PWA) | On an always-on box: `./scripts/serve-mesh.sh` → open the LAN URL → Add to Home Screen; or Tailscale live-node URL from Settings |
 | iPhone / Android (native) | Capacitor shell around the same `dist/` — see **Native phone apps** below |
 
-Launches the **release** desktop app (not a browser tab). Dev HMR: `npm run tauri:dev` — use the native window, not `:5187` alone.
+Launches the **release** desktop app (not a browser tab). Dev HMR: `npm run tauri:dev` — use the native window, not `:5194` alone.
 
 ### Native phone apps (Capacitor)
 
@@ -80,7 +80,7 @@ Phones are metadata/kanban nodes. Desktop apps still own Unity / Explorer / `run
 
 ## Development
 
-Sticky Vite port **5187** for `tauri:dev` webview only. LAN PWA: `./scripts/serve-mesh.sh`.
+Sticky Vite port **5194** for `tauri:dev` webview only. LAN PWA: `./scripts/serve-mesh.sh`.
 
 ## Credit
 

@@ -10,7 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 STATUS_FILE = os.environ.get("LAUNCH_STATUS_FILE", "")
-PORT = int(os.environ.get("LAUNCH_UI_PORT", "5188"))
+PORT = int(os.environ.get("LAUNCH_UI_PORT", "5201"))
 DEFAULT_STATUS = {"message": "Starting…", "progress": 0, "done": False, "error": False}
 
 

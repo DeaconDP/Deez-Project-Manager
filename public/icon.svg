@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <rect width="1024" height="1024" rx="230" ry="230" fill="#000000"/>
+  <g transform="translate(122.88 122.88) scale(32.42666666666667)">
+    <g transform="translate(0 0) scale(0.23529411764705882)"><image width="102" height="102" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGYAAABmCAYAAAA53+RiAAAACXBIWXMAAAPoAAAD6AG1e1JrAAABJ0lEQVR4nO3dMW7CQBBAUd+Lc7jyAXIwOEquQ/pUEyHRIkFh60Pek7aiWe0vQKO1WRYAAAJmZp2ZqzWlM1hvYbahZhOmSZgoYd4xzM8LX1a/B2/8/4Z58Zfd+fi9fzRhooSJEiZKmChhooSJEiZKmChhooSJMsSMEiZKmChhooQphznNzMWa0hmc9rsXBQAAAMAjHlxKMl2OEiZKmChh3jHM1/2zZ9b3wRv/dO6VRQkTJUyUMFHCRAkTJUyUMFHCRAkTZSQTZYgZJUyUMFHCRAkTtT28PQMAAADAbrzkZ5ov+fFEWZLpcpQwUcJECRPlXlmUMFHCRAkTJUyUMFHCRAkTJUyUMFHCRPnb+ChDzChhooSJEqYcZp2ZqzWlM1j3uxcFAMDytD+YSragtmoPDQAAAABJRU5ErkJggg=="/></g>
+  </g>
+</svg>

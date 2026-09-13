@@ -2,7 +2,7 @@
 
 ## Active
 
-- [x] Scaffold Tauri 2 + React-TS; Vite `5187` strictPort; cyberpunk shell
+- [x] Scaffold Tauri 2 + React-TS; Vite `5194` strictPort; cyberpunk shell
 - [x] Project model + app-data JSON load/save with debounce
 - [x] Projects table (Name / Priority / Platform / Category / Location / GitHub)
 - [x] Drag-and-drop sort autosave

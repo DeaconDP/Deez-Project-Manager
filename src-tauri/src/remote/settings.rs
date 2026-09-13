@@ -3,7 +3,7 @@ use std::fs;
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 
-/// Sticky remote PWA port (sibling to Vite 5187; avoids HMR 5188).
+/// Sticky remote PWA port (sibling to Vite 5194; avoids HMR 5195).
 pub const DEFAULT_REMOTE_PORT: u16 = 5197;
 
 const SETTINGS_FILE: &str = "remote.json";
