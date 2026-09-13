@@ -10,7 +10,7 @@ export PATH="$HOME/.cargo/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:
 
 STATUS_FILE="${TMPDIR:-/tmp}/deez-project-manager-launch-status.json"
 LOG="${TMPDIR:-/tmp}/deez-project-manager-launch.log"
-UI_PORT="${LAUNCH_UI_PORT:-5188}"
+UI_PORT="${LAUNCH_UI_PORT:-5201}"
 UI_URL="http://127.0.0.1:${UI_PORT}/"
 SERVER_PID=""
 BROWSER_PID=""

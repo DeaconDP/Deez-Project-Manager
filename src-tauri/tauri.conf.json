@@ -5,7 +5,7 @@
   "identifier": "com.deez.projectmanager",
   "build": {
     "beforeDevCommand": "npm run dev",
-    "devUrl": "http://127.0.0.1:5187",
+    "devUrl": "http://127.0.0.1:5194",
     "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist"
   },
