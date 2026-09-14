@@ -216,6 +216,34 @@ function TrashIcon() {
   );
 }
 
+function UpdateGlyphIcon() {
+  return (
+    <svg
+      className="gh-update-glyph"
+      width="14"
+      height="14"
+      viewBox="0 0 14 14"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <path
+        d="M7 2.5v7M4.25 7.25 7 10l2.75-2.75"
+        stroke="currentColor"
+        strokeWidth="1.35"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M3 11.5h8"
+        stroke="currentColor"
+        strokeWidth="1.35"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 function GripIcon() {
   return (
     <svg
@@ -1005,11 +1033,12 @@ function ProjectDataCells({
           {showUpdate ? (
             <button
               type="button"
-              className="btn-sm gh-update-btn"
+              className={`btn-sm gh-update-btn${iconOnly ? " is-icon" : ""}`}
               title="Pull latest and rebuild"
+              aria-label="Update"
               onClick={() => onUpdateLocal?.(project)}
             >
-              Update
+              {iconOnly ? <UpdateGlyphIcon /> : "Update"}
             </button>
           ) : null}
           {updating ? (
