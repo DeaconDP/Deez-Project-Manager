@@ -1829,29 +1829,29 @@ button[aria-busy="true"]:disabled {
   max-width: 100%;
 }
 
-.gh-update-btn {
-  flex-shrink: 0;
-  padding: 2px 8px;
-  font-size: 0.72rem;
-  border-color: color-mix(in srgb, #ffc857 55%, var(--border));
-  color: #ffc857;
-  background: rgba(255, 200, 87, 0.1);
-}
-
-.gh-update-btn.is-icon {
-  box-sizing: border-box;
-  width: 100%;
-  max-width: 40px;
-  min-width: 0;
-  min-height: 32px;
+button.gh-status {
+  margin: 0;
   padding: 0;
-  display: inline-grid;
-  place-items: center;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border-radius: var(--radius);
 }
 
-.gh-update-btn:hover:not(:disabled) {
-  border-color: #ffc857;
-  background: rgba(255, 200, 87, 0.18);
+button.gh-status:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+button.gh-status.is-update:hover {
+  filter: brightness(1.18);
+}
+
+button.gh-status.is-update.gh-behind:hover {
+  color: #ffd67a;
+  background: rgba(255, 200, 87, 0.12);
 }
 
 .gh-update-phase {
@@ -2805,13 +2805,6 @@ button[aria-busy="true"]:disabled {
 .app-shell[data-layout="phone"] .btn-sm {
   min-height: 32px;
   padding: 6px 10px;
-}
-
-.app-shell[data-layout="narrow"] .gh-update-btn.is-icon,
-.app-shell[data-layout="phone"] .gh-update-btn.is-icon {
-  padding: 0;
-  min-height: 40px;
-  max-width: 40px;
 }
 
 /* Sticky identity columns while the rest of the table scrolls */
