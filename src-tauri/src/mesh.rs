@@ -189,7 +189,8 @@ pub fn mesh_save_config(
 #[tauri::command]
 pub fn mesh_set_pat(app: AppHandle, secret: String) -> Result<MeshConfigPublic, String> {
     let mut cfg = load_config(&app)?;
-    credentials::replace(PAT_PROVIDER, cfg.credential_id.as_deref(), &secret, |id| {
+    let existing_id = cfg.credential_id.clone();
+    credentials::replace(PAT_PROVIDER, existing_id.as_deref(), &secret, |id| {
         cfg.credential_id = id
     })?;
     save_config(&app, &cfg)?;

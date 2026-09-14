@@ -139,7 +139,7 @@ fn set_last_error(app: &AppHandle, msg: Option<String>) -> Result<(), String> {
 
 fn run_openship(args: &[&str]) -> Result<String, String> {
     let bin = find_on_path("openship").ok_or_else(|| {
-        "OPSH-010: openship CLI not found on PATH. Install: npm i -g openship (Node 22+)".into()
+        "OPSH-010: openship CLI not found on PATH. Install: npm i -g openship (Node 22+)".to_string()
     })?;
     let mut cmd = command(bin.to_string_lossy().as_ref());
     cmd.arg("--json");
@@ -247,7 +247,8 @@ pub fn openship_save_config(
 #[tauri::command]
 pub fn openship_set_pat(app: AppHandle, secret: String) -> Result<OpenshipConfigPublic, String> {
     let mut cfg = load_config(&app)?;
-    credentials::replace(PAT_PROVIDER, cfg.credential_id.as_deref(), &secret, |id| {
+    let existing_id = cfg.credential_id.clone();
+    credentials::replace(PAT_PROVIDER, existing_id.as_deref(), &secret, |id| {
         cfg.credential_id = id
     })?;
     save_config(&app, &cfg)?;
