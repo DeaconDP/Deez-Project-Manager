@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Output;
+use std::time::{Duration, SystemTime};
 use tauri::{AppHandle, Manager};
 
 const CONFIG_FILE: &str = "openship-config.json";
@@ -438,10 +439,300 @@ fn git_fetch_and_pull(root: &Path) -> Result<String, String> {
         .output()
         .map_err(|e| format!("OPSH-042: git pull failed to start: {e}"))?;
     if !pull.status.success() {
-        let err = String::from_utf8_lossy(&pull.stderr);
-        return Err(format!("OPSH-042: git pull --ff-only failed — {err}"));
+        let err = String::from_utf8_lossy(&pull.stderr).into_owned();
+        if !is_index_lock_error(&err) {
+            return Err(format!("OPSH-042: git pull --ff-only failed — {err}"));
+        }
+        match reconcile_index_lock(root) {
+            ReconcileOutcome::Cleared => {
+                let pull2 = command("git")
+                    .args(["pull", "--ff-only"])
+                    .current_dir(root)
+                    .output()
+                    .map_err(|e| format!("OPSH-042: git pull failed to start: {e}"))?;
+                if !pull2.status.success() {
+                    let err2 = String::from_utf8_lossy(&pull2.stderr);
+                    return Err(format!("OPSH-042: git pull --ff-only failed — {err2}"));
+                }
+                return Ok(format!(
+                    "pulled ({behind} behind); cleared stale index.lock"
+                ));
+            }
+            ReconcileOutcome::Refused(reason) => {
+                return Err(live_lock_opsh_message(reason));
+            }
+            ReconcileOutcome::Absent => {
+                return Err(format!("OPSH-042: git pull --ff-only failed — {err}"));
+            }
+        }
     }
     Ok(format!("pulled ({behind} behind)"))
+}
+
+const FRESH_MTIME: Duration = Duration::from_secs(120);
+
+#[derive(Debug, Clone)]
+struct IndexLockFacts {
+    path: PathBuf,
+    exists: bool,
+    mtime_age: Option<Duration>,
+    holder_open: bool,
+}
+
+#[derive(Debug)]
+struct StaleIndexLock {
+    path: PathBuf,
+}
+
+impl StaleIndexLock {
+    fn clear(self) -> Result<(), String> {
+        fs::remove_file(&self.path).map_err(|e| format!("remove {}: {e}", self.path.display()))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum LiveLockReason {
+    HolderOpen,
+    Indeterminate,
+}
+
+#[derive(Debug)]
+enum IndexLockState {
+    Absent,
+    Stale(StaleIndexLock),
+    Live(LiveLockReason),
+}
+
+#[derive(Debug)]
+enum ReconcileOutcome {
+    Absent,
+    Cleared,
+    Refused(LiveLockReason),
+}
+
+fn is_index_lock_error(stderr: &str) -> bool {
+    stderr.contains("index.lock")
+        && (stderr.contains("File exists") || stderr.contains("Unable to create"))
+}
+
+fn classify_index_lock(facts: IndexLockFacts) -> IndexLockState {
+    if !facts.exists {
+        return IndexLockState::Absent;
+    }
+    if facts.holder_open {
+        return IndexLockState::Live(LiveLockReason::HolderOpen);
+    }
+    match facts.mtime_age {
+        Some(age) if age >= FRESH_MTIME => IndexLockState::Stale(StaleIndexLock {
+            path: facts.path,
+        }),
+        Some(_) | None => IndexLockState::Live(LiveLockReason::Indeterminate),
+    }
+}
+
+fn live_lock_opsh_message(reason: LiveLockReason) -> String {
+    let detail = match reason {
+        LiveLockReason::HolderOpen => {
+            ".git/index.lock is held open by another process"
+        }
+        LiveLockReason::Indeterminate => {
+            ".git/index.lock looks live; refusing to clear it"
+        }
+    };
+    format!("OPSH-042: git pull --ff-only failed - {detail}")
+}
+
+/// Missing/failing `lsof` is not a holder.
+fn lock_holder_open(path: &Path) -> bool {
+    // `-t` prints PIDs only (no header), so empty stdout means no holder.
+    match command("lsof").args(["-t"]).arg(path).output() {
+        Ok(out) => String::from_utf8_lossy(&out.stdout)
+            .lines()
+            .any(|line| !line.trim().is_empty()),
+        Err(_) => false,
+    }
+}
+
+fn probe_index_lock(root: &Path) -> IndexLockFacts {
+    let path = root.join(".git").join("index.lock");
+    if !path.exists() {
+        return IndexLockFacts {
+            path,
+            exists: false,
+            mtime_age: None,
+            holder_open: false,
+        };
+    }
+    let mtime_age = fs::metadata(&path)
+        .ok()
+        .and_then(|m| m.modified().ok())
+        .and_then(|mtime| SystemTime::now().duration_since(mtime).ok());
+    let holder_open = lock_holder_open(&path);
+    IndexLockFacts {
+        path,
+        exists: true,
+        mtime_age,
+        holder_open,
+    }
+}
+
+fn reconcile_index_lock(root: &Path) -> ReconcileOutcome {
+    match classify_index_lock(probe_index_lock(root)) {
+        IndexLockState::Absent => ReconcileOutcome::Absent,
+        IndexLockState::Stale(lock) => match lock.clear() {
+            Ok(()) => ReconcileOutcome::Cleared,
+            Err(_) => ReconcileOutcome::Refused(LiveLockReason::Indeterminate),
+        },
+        IndexLockState::Live(reason) => ReconcileOutcome::Refused(reason),
+    }
+}
+
+#[cfg(test)]
+mod index_lock_tests {
+    use super::*;
+
+    #[test]
+    fn detects_classic_index_lock_stderr() {
+        let stderr = "error: Unable to create '/repo/.git/index.lock': File exists.";
+        assert!(is_index_lock_error(stderr));
+    }
+
+    #[test]
+    fn ignores_unrelated_pull_stderr() {
+        let stderr = "fatal: Not possible to fast-forward, aborting.";
+        assert!(!is_index_lock_error(stderr));
+    }
+
+    #[test]
+    fn months_old_no_holder_is_stale() {
+        let facts = IndexLockFacts {
+            path: PathBuf::from("/repo/.git/index.lock"),
+            exists: true,
+            mtime_age: Some(Duration::from_secs(60 * 60 * 24 * 30)),
+            holder_open: false,
+        };
+        assert!(matches!(
+            classify_index_lock(facts),
+            IndexLockState::Stale(_)
+        ));
+    }
+
+    #[test]
+    fn holder_open_is_live_never_stale() {
+        let facts = IndexLockFacts {
+            path: PathBuf::from("/repo/.git/index.lock"),
+            exists: true,
+            mtime_age: Some(Duration::from_secs(10_000)),
+            holder_open: true,
+        };
+        assert!(matches!(
+            classify_index_lock(facts),
+            IndexLockState::Live(LiveLockReason::HolderOpen)
+        ));
+    }
+
+    #[test]
+    fn fresh_mtime_no_holder_is_live() {
+        let facts = IndexLockFacts {
+            path: PathBuf::from("/repo/.git/index.lock"),
+            exists: true,
+            mtime_age: Some(Duration::from_secs(5)),
+            holder_open: false,
+        };
+        assert!(matches!(
+            classify_index_lock(facts),
+            IndexLockState::Live(LiveLockReason::Indeterminate)
+        ));
+    }
+
+    #[test]
+    fn missing_lock_is_absent() {
+        let facts = IndexLockFacts {
+            path: PathBuf::from("/repo/.git/index.lock"),
+            exists: false,
+            mtime_age: None,
+            holder_open: false,
+        };
+        assert!(matches!(
+            classify_index_lock(facts),
+            IndexLockState::Absent
+        ));
+    }
+
+    #[test]
+    fn unreadable_age_is_live_indeterminate() {
+        let facts = IndexLockFacts {
+            path: PathBuf::from("/repo/.git/index.lock"),
+            exists: true,
+            mtime_age: None,
+            holder_open: false,
+        };
+        assert!(matches!(
+            classify_index_lock(facts),
+            IndexLockState::Live(LiveLockReason::Indeterminate)
+        ));
+    }
+
+    #[test]
+    fn reconcile_clears_months_old_lock_in_tmp_repo() {
+        let root = std::env::temp_dir().join(format!(
+            "opsh042-index-lock-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join(".git")).expect("mkdir .git");
+        let lock = root.join(".git").join("index.lock");
+        fs::write(&lock, b"").expect("write lock");
+        let old = SystemTime::now() - Duration::from_secs(60 * 60 * 24 * 30);
+        let file = fs::File::options()
+            .write(true)
+            .open(&lock)
+            .expect("open lock");
+        file.set_modified(old).expect("set mtime");
+        drop(file);
+
+        let outcome = reconcile_index_lock(&root);
+        assert!(
+            matches!(outcome, ReconcileOutcome::Cleared),
+            "expected Cleared, got {outcome:?}"
+        );
+        assert!(!lock.exists(), "stale lock should be gone");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn verify_repo_stale_lock_then_pull_when_env_set() {
+        let Ok(raw) = std::env::var("OPSH042_VERIFY_REPO") else {
+            return;
+        };
+        let root = PathBuf::from(raw);
+        let lock = root.join(".git").join("index.lock");
+        assert!(
+            lock.is_file(),
+            "expected stale lock at {}",
+            lock.display()
+        );
+        let before = command("git")
+            .args(["pull", "--ff-only"])
+            .current_dir(&root)
+            .output()
+            .expect("git pull before");
+        assert!(
+            !before.status.success(),
+            "precondition: pull should fail while lock exists"
+        );
+        assert!(
+            is_index_lock_error(&String::from_utf8_lossy(&before.stderr)),
+            "precondition: stderr should be index.lock"
+        );
+
+        let msg = git_fetch_and_pull(&root).expect("git_fetch_and_pull after harden");
+        assert!(
+            msg.contains("cleared stale index.lock") || msg.contains("pulled"),
+            "unexpected success note: {msg}"
+        );
+        assert!(!lock.exists(), "lock should be cleared");
+    }
 }
 
 fn rebuild_local(root: &Path) -> Result<String, String> {
