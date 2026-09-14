@@ -1838,6 +1838,17 @@ button[aria-busy="true"]:disabled {
   background: rgba(255, 200, 87, 0.1);
 }
 
+.gh-update-btn.is-icon {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 40px;
+  min-width: 0;
+  min-height: 32px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+}
+
 .gh-update-btn:hover:not(:disabled) {
   border-color: #ffc857;
   background: rgba(255, 200, 87, 0.18);
@@ -2794,6 +2805,13 @@ button[aria-busy="true"]:disabled {
 .app-shell[data-layout="phone"] .btn-sm {
   min-height: 32px;
   padding: 6px 10px;
+}
+
+.app-shell[data-layout="narrow"] .gh-update-btn.is-icon,
+.app-shell[data-layout="phone"] .gh-update-btn.is-icon {
+  padding: 0;
+  min-height: 40px;
+  max-width: 40px;
 }
 
 /* Sticky identity columns while the rest of the table scrolls */

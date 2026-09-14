@@ -26,7 +26,6 @@ export default defineConfig(async () => ({
       : {
           protocol: "ws",
           host: "127.0.0.1",
-          port: 5194,
         },
     watch: {
       // Polling helps Windows/agent edits reliably trigger HMR in the Tauri webview.
