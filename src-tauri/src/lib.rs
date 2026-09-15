@@ -34,7 +34,8 @@ use mesh::{
 };
 use openship::{
     openship_clear_pat, openship_cli_status, openship_get_config, openship_project_status,
-    openship_save_config, openship_set_pat, openship_ship, update_local_project,
+    openship_save_config, openship_set_pat, openship_ship, publish_local_project,
+    update_local_project,
 };
 use usage::{
     fuel_clear_credential, fuel_connect, fuel_get_settings, fuel_get_snapshot, fuel_refresh,
@@ -794,6 +795,7 @@ pub fn run() {
             openship_project_status,
             openship_cli_status,
             update_local_project,
+            publish_local_project,
             remote::remote_get_info,
             remote::remote_qr_svg,
             remote::remote_save_settings,

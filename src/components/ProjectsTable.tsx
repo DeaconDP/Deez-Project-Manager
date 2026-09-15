@@ -33,8 +33,6 @@ import {
 import { createPortal } from "react-dom";
 import {
   GITHUB_STATUS_SORT_RANK,
-  githubStatusLabel,
-  githubStatusTooltip,
   isFleetOpsRow,
   normalizeCategory,
   normalizeStatus,
@@ -51,7 +49,6 @@ import {
   CategoryHeaderIcon,
   CategoryIcon,
   GithubHeaderIcon,
-  GithubStatusIcon,
   PlatformHeaderIcon,
   PlatformIcon,
   PriorityHeaderIcon,
@@ -59,9 +56,14 @@ import {
   StatusHeaderIcon,
   StatusIcon,
 } from "./FieldIcons";
+import { GitGlanceControl } from "./GitGlanceControl";
 import { PrioritySelect } from "./PrioritySelect";
 import { StatusSelect } from "./StatusSelect";
 import { Spinner } from "./Spinner";
+import {
+  resolveGitGlance,
+  type GitActionKind,
+} from "../lib/gitGlance";
 import {
   projectNeedsGitUpdate,
   type GitUpdateJob,
@@ -216,34 +218,6 @@ function TrashIcon() {
   );
 }
 
-function UpdateGlyphIcon() {
-  return (
-    <svg
-      className="gh-update-glyph"
-      width="14"
-      height="14"
-      viewBox="0 0 14 14"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-    >
-      <path
-        d="M7 2.5v7M4.25 7.25 7 10l2.75-2.75"
-        stroke="currentColor"
-        strokeWidth="1.35"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M3 11.5h8"
-        stroke="currentColor"
-        strokeWidth="1.35"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
 function GripIcon() {
   return (
     <svg
@@ -384,6 +358,7 @@ interface RowProps {
   onShipPreview?: (project: Project) => void;
   onPromoteLive?: (project: Project) => void;
   onUpdateLocal?: (project: Project) => void;
+  onGitAction?: (project: Project, kind: GitActionKind) => void;
   onOpsStatus?: (project: Project) => void;
   onOpenPreviewUrl?: (project: Project) => void;
   onOpenLiveUrl?: (project: Project) => void;
@@ -929,7 +904,7 @@ function ProjectDataCells({
   category,
   actions,
   onOpenBoard,
-  onUpdateLocal,
+  onGitAction,
   gitUpdateJob,
   archivedView = false,
   iconOnly = false,
@@ -942,21 +917,23 @@ function ProjectDataCells({
   category: ReactNode;
   actions: ReactNode;
   onOpenBoard?: (project: Project) => void;
-  onUpdateLocal?: (project: Project) => void;
+  onGitAction?: (project: Project, kind: GitActionKind) => void;
   gitUpdateJob?: GitUpdateJob | null;
   archivedView?: boolean;
   iconOnly?: boolean;
 }) {
-  const ghLabel = githubStatusLabel(project.githubStatus, project);
-  const ghTip = githubStatusTooltip(project);
-  const showUpdate =
-    !archivedView &&
-    !!onUpdateLocal &&
-    projectNeedsGitUpdate(project) &&
-    gitUpdateJob?.phase !== "running" &&
-    gitUpdateJob?.phase !== "queued";
+  const glance = resolveGitGlance(project);
   const updating =
     gitUpdateJob?.phase === "queued" || gitUpdateJob?.phase === "running";
+  const publishBusy =
+    updating && gitUpdateJob?.actionKind === "publish-local";
+  const phaseLabel = updating
+    ? gitUpdateJob?.phase === "queued"
+      ? "Queued"
+      : publishBusy
+        ? "Publishing…"
+        : "Updating…"
+    : null;
 
   return (
     <>
@@ -1011,51 +988,38 @@ function ProjectDataCells({
       <Cell className="col-category">{category}</Cell>
       <Cell className="col-github">
         <div className="gh-cell">
-          {project.githubStatus === "none" ? (
+          {glance == null ? (
             <EmptyValue />
-          ) : iconOnly ? (
-            <span
-              className={`gh-status gh-icon-only gh-${project.githubStatus}`}
-              title={ghTip}
-              aria-label={ghTip}
-            >
-              <GithubStatusIcon status={project.githubStatus} />
-            </span>
           ) : (
-            <span
-              className={`gh-status gh-${project.githubStatus}`}
-              title={ghTip}
-            >
-              <span className="gh-dot" aria-hidden="true" />
-              <span className="gh-label">{ghLabel}</span>
-            </span>
+            <GitGlanceControl
+              spec={
+                archivedView || !onGitAction
+                  ? { ...glance, actionKind: null }
+                  : glance
+              }
+              busy={updating}
+              onAction={
+                onGitAction
+                  ? (kind) => onGitAction(project, kind)
+                  : undefined
+              }
+            />
           )}
-          {showUpdate ? (
-            <button
-              type="button"
-              className={`btn-sm gh-update-btn${iconOnly ? " is-icon" : ""}`}
-              title="Pull latest and rebuild"
-              aria-label="Update"
-              onClick={() => onUpdateLocal?.(project)}
-            >
-              {iconOnly ? <UpdateGlyphIcon /> : "Update"}
-            </button>
-          ) : null}
-          {updating ? (
+          {phaseLabel ? (
             <span className="gh-update-phase" title={gitUpdateJob?.message}>
-              {gitUpdateJob?.phase === "queued" ? "Queued" : "Updating…"}
+              {phaseLabel}
             </span>
           ) : null}
           {gitUpdateJob ? (
             <div
-              className={`git-update-bar is-${gitUpdateJob.phase}`}
+              className={`git-update-bar is-${gitUpdateJob.phase}${gitUpdateJob.actionKind === "publish-local" ? " is-publish" : ""}`}
               role="progressbar"
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={gitUpdateJob.pct}
               aria-label={
                 gitUpdateJob.message ||
-                `Update ${gitUpdateJob.phase}`
+                `Git action ${gitUpdateJob.phase}`
               }
             >
               <div
@@ -1080,7 +1044,7 @@ function InteractiveRowCells({
   onStatusChange,
   onCategoryChange,
   onOpenBoard,
-  onUpdateLocal,
+  onGitAction,
   gitUpdateJob,
   archivedView,
   actions,
@@ -1094,7 +1058,7 @@ function InteractiveRowCells({
   onStatusChange: (id: string, status: Status) => void;
   onCategoryChange: (id: string, category: Category) => void;
   onOpenBoard?: (project: Project) => void;
-  onUpdateLocal?: (project: Project) => void;
+  onGitAction?: (project: Project, kind: GitActionKind) => void;
   gitUpdateJob?: GitUpdateJob | null;
   archivedView?: boolean;
   actions: ReactNode;
@@ -1104,7 +1068,7 @@ function InteractiveRowCells({
     <ProjectDataCells
       project={project}
       onOpenBoard={onOpenBoard}
-      onUpdateLocal={onUpdateLocal}
+      onGitAction={onGitAction}
       gitUpdateJob={gitUpdateJob}
       archivedView={archivedView}
       iconOnly={iconOnly}
@@ -1313,6 +1277,7 @@ const ProjectRow = memo(function ProjectRow({
   onShipPreview,
   onPromoteLive,
   onUpdateLocal,
+  onGitAction,
   onOpsStatus,
   onOpenPreviewUrl,
   onOpenLiveUrl,
@@ -1347,7 +1312,7 @@ const ProjectRow = memo(function ProjectRow({
         iconOnly={iconOnly}
         archivedView={archivedView}
         gitUpdateJob={gitUpdateJob}
-        onUpdateLocal={onUpdateLocal}
+        onGitAction={onGitAction}
         onToggleFavorite={onToggleFavorite}
         onPriorityChange={onPriorityChange}
         onStatusChange={onStatusChange}
@@ -1506,6 +1471,7 @@ interface TableProps {
   onShipPreview?: (project: Project) => void;
   onPromoteLive?: (project: Project) => void;
   onUpdateLocal?: (project: Project) => void;
+  onGitAction?: (project: Project, kind: GitActionKind) => void;
   onOpsStatus?: (project: Project) => void;
   onOpenPreviewUrl?: (project: Project) => void;
   onOpenLiveUrl?: (project: Project) => void;
@@ -1538,6 +1504,7 @@ export function ProjectsTable({
   onShipPreview,
   onPromoteLive,
   onUpdateLocal,
+  onGitAction,
   onOpsStatus,
   onOpenPreviewUrl,
   onOpenLiveUrl,
@@ -1694,6 +1661,7 @@ export function ProjectsTable({
     onShipPreview,
     onPromoteLive,
     onUpdateLocal,
+    onGitAction,
     onOpsStatus,
     onOpenPreviewUrl,
     onOpenLiveUrl,

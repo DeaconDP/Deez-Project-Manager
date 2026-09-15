@@ -440,6 +440,13 @@ export async function updateLocalProject(
   return tauriInvoke<OpenshipActionResult>("update_local_project", { path });
 }
 
+export async function publishLocalProject(
+  path: string,
+): Promise<OpenshipActionResult> {
+  if (!isTauri()) remoteUnsupported("Publish Local");
+  return tauriInvoke<OpenshipActionResult>("publish_local_project", { path });
+}
+
 export function isDesktopApp(): boolean {
   return isTauri();
 }
