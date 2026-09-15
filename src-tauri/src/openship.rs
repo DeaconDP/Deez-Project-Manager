@@ -402,6 +402,96 @@ pub fn update_local_project(path: String) -> Result<OpenshipActionResult, String
     })
 }
 
+const PUBLISH_COMMIT_MSG: &str = "chore: publish from Deez Project Manager";
+
+/// Commit dirty worktree if needed, then push when ahead of upstream. No force.
+#[tauri::command]
+pub fn publish_local_project(path: String) -> Result<OpenshipActionResult, String> {
+    let root = PathBuf::from(path.trim());
+    if !root.is_dir() {
+        return Ok(err_msg("OPSH-050: local path missing or not a directory"));
+    }
+    if !root.join(".git").exists() {
+        return Ok(err_msg("OPSH-050: no .git directory"));
+    }
+
+    let mut notes: Vec<String> = Vec::new();
+
+    let porcelain = command("git")
+        .args(["status", "--porcelain"])
+        .current_dir(&root)
+        .output()
+        .map_err(|e| format!("OPSH-051: git status failed to start: {e}"))?;
+    if !porcelain.status.success() {
+        let err = String::from_utf8_lossy(&porcelain.stderr);
+        return Ok(err_msg(format!("OPSH-051: git status failed — {err}")));
+    }
+    let dirty = !String::from_utf8_lossy(&porcelain.stdout)
+        .trim()
+        .is_empty();
+
+    if dirty {
+        let add = command("git")
+            .args(["add", "-A"])
+            .current_dir(&root)
+            .output()
+            .map_err(|e| format!("OPSH-052: git add failed to start: {e}"))?;
+        if !add.status.success() {
+            let err = String::from_utf8_lossy(&add.stderr);
+            return Ok(err_msg(format!("OPSH-052: git add failed — {err}")));
+        }
+
+        let commit = command("git")
+            .args(["commit", "-m", PUBLISH_COMMIT_MSG])
+            .current_dir(&root)
+            .output()
+            .map_err(|e| format!("OPSH-053: git commit failed to start: {e}"))?;
+        if !commit.status.success() {
+            let err = String::from_utf8_lossy(&commit.stderr);
+            return Ok(err_msg(format!("OPSH-053: git commit failed — {err}")));
+        }
+        notes.push("committed".into());
+    }
+
+    let ab = command("git")
+        .args(["rev-list", "--left-right", "--count", "HEAD...@{upstream}"])
+        .current_dir(&root)
+        .output();
+    let ahead = match ab {
+        Ok(out) if out.status.success() => {
+            let text = String::from_utf8_lossy(&out.stdout);
+            let parts: Vec<&str> = text.split_whitespace().collect();
+            parts
+                .first()
+                .and_then(|s| s.parse::<i32>().ok())
+                .unwrap_or(0)
+        }
+        _ => 0,
+    };
+
+    if ahead > 0 {
+        let push = command("git")
+            .args(["push"])
+            .current_dir(&root)
+            .output()
+            .map_err(|e| format!("OPSH-054: git push failed to start: {e}"))?;
+        if !push.status.success() {
+            let err = String::from_utf8_lossy(&push.stderr);
+            return Ok(err_msg(format!("OPSH-054: git push failed — {err}")));
+        }
+        notes.push(format!("pushed ({ahead} ahead)"));
+    } else if notes.is_empty() {
+        notes.push("nothing to publish".into());
+    }
+
+    Ok(OpenshipActionResult {
+        ok: true,
+        message: notes.join(" · "),
+        detail: None,
+        last_build_at: None,
+    })
+}
+
 fn git_fetch_and_pull(root: &Path) -> Result<String, String> {
     let fetch = command("git")
         .args(["fetch", "--quiet"])

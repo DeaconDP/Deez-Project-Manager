@@ -20,6 +20,7 @@ import {
   syncAllParentFolders,
   syncParentFolder,
   updateLocalProject,
+  publishLocalProject,
 } from "./api";
 import { ActionFeedback } from "./components/ActionFeedback";
 import { AppChrome } from "./components/AppChrome";
@@ -53,6 +54,7 @@ import {
   enqueueGitUpdateIds,
   gitUpdatePct,
   projectNeedsGitUpdate,
+  type GitActionKind,
   type GitUpdateJob,
 } from "./lib/gitUpdate";
 import "./App.css";
@@ -639,16 +641,24 @@ function App() {
         continue;
       }
 
+      const actionKind: GitActionKind =
+        gitUpdateJobsRef.current[id]?.actionKind ?? "pull-behind";
+
       patchJob(id, {
         phase: "running",
         pct: gitUpdatePct("running"),
-        message: "Updating…",
+        message:
+          actionKind === "publish-local" ? "Publishing…" : "Updating…",
+        actionKind,
       });
 
       try {
         // ponytail: let React paint queued→running before the await blocks
         await new Promise((r) => window.setTimeout(r, 350));
-        const result = await updateLocalProject(project.localPath);
+        const result =
+          actionKind === "publish-local"
+            ? await publishLocalProject(project.localPath)
+            : await updateLocalProject(project.localPath);
         if (!result.ok) throw new Error(result.message);
 
         if (result.lastBuildAt) {
@@ -659,21 +669,33 @@ function App() {
           });
         }
 
-        // Optimistic clear of behind — Refresh can re-probe later.
-        applyGitSyncUpdate({
-          id: project.id,
-          githubStatus: project.gitDirty ? "dirty" : "clean",
-          gitAhead: 0,
-          gitBehind: 0,
-          gitBranch: project.gitBranch ?? null,
-          gitDirty: project.gitDirty ?? false,
-        });
+        if (actionKind === "publish-local") {
+          applyGitSyncUpdate({
+            id: project.id,
+            githubStatus: "clean",
+            gitAhead: 0,
+            gitBehind: 0,
+            gitBranch: project.gitBranch ?? null,
+            gitDirty: false,
+          });
+        } else {
+          // Optimistic clear of behind — Refresh can re-probe later.
+          applyGitSyncUpdate({
+            id: project.id,
+            githubStatus: project.gitDirty ? "dirty" : "clean",
+            gitAhead: 0,
+            gitBehind: 0,
+            gitBranch: project.gitBranch ?? null,
+            gitDirty: project.gitDirty ?? false,
+          });
+        }
 
         okCount += 1;
         patchJob(id, {
           phase: "done",
           pct: gitUpdatePct("done"),
           message: result.message,
+          actionKind,
         });
         window.setTimeout(() => {
           setGitUpdateJobs((prev) => {
@@ -691,6 +713,7 @@ function App() {
           phase: "error",
           pct: gitUpdatePct("error"),
           message: lastFailMessage,
+          actionKind,
         });
       }
     }
@@ -703,8 +726,8 @@ function App() {
         kind: "success",
         message:
           okCount === 1
-            ? "Local update finished"
-            : `Updated ${okCount} projects`,
+            ? "Git action finished"
+            : `Finished ${okCount} git actions`,
         persist: true,
       });
       return;
@@ -713,14 +736,14 @@ function App() {
       kind: "error",
       message:
         okCount === 0
-          ? lastFailMessage || "Update failed"
-          : `Updated ${okCount}, ${failCount} failed`,
+          ? lastFailMessage || "Git action failed"
+          : `Finished ${okCount}, ${failCount} failed`,
       persist: true,
     });
   }, [applyGitSyncUpdate, setOpenFeedback, upsert]);
 
   const enqueueGitUpdates = useCallback(
-    (targets: Project[]) => {
+    (targets: Project[], actionKind: GitActionKind = "pull-behind") => {
       const ids = targets
         .filter((p) => p.localPath?.trim())
         .map((p) => p.id);
@@ -729,6 +752,7 @@ function App() {
         gitUpdateQueueRef.current,
         gitUpdateJobsRef.current,
         ids,
+        actionKind,
       );
       gitUpdateQueueRef.current = queue;
       gitUpdateJobsRef.current = jobs;
@@ -746,13 +770,26 @@ function App() {
       });
       return;
     }
-    // Non-blocking: queue runs in background so the user can keep working.
-    enqueueGitUpdates([project]);
+    enqueueGitUpdates([project], "pull-behind");
+  }
+
+  function handleGitAction(project: Project, kind: GitActionKind) {
+    if (!project.localPath) {
+      setOpenFeedback({
+        kind: "error",
+        message:
+          kind === "publish-local"
+            ? "Set a local path before publishing."
+            : "Set a local path before Update Local.",
+      });
+      return;
+    }
+    enqueueGitUpdates([project], kind);
   }
 
   function handleUpdateAllBehind() {
     if (behindToUpdate.length === 0) return;
-    enqueueGitUpdates(behindToUpdate);
+    enqueueGitUpdates(behindToUpdate, "pull-behind");
   }
 
   async function handleOpsStatus(project: Project) {
@@ -839,6 +876,7 @@ function App() {
     ship: handleShipPreview,
     promote: handlePromoteLive,
     updateLocal: handleUpdateLocal,
+    gitAction: handleGitAction,
     opsStatus: handleOpsStatus,
     previewUrl: handleOpenPreviewUrl,
     liveUrl: handleOpenLiveUrl,
@@ -851,6 +889,7 @@ function App() {
     ship: handleShipPreview,
     promote: handlePromoteLive,
     updateLocal: handleUpdateLocal,
+    gitAction: handleGitAction,
     opsStatus: handleOpsStatus,
     previewUrl: handleOpenPreviewUrl,
     liveUrl: handleOpenLiveUrl,
@@ -873,6 +912,9 @@ function App() {
   }, []);
   const onUpdateLocal = useCallback((p: Project) => {
     void openHandlersRef.current.updateLocal(p);
+  }, []);
+  const onGitAction = useCallback((p: Project, kind: GitActionKind) => {
+    openHandlersRef.current.gitAction(p, kind);
   }, []);
   const onOpsStatus = useCallback((p: Project) => {
     void openHandlersRef.current.opsStatus(p);
@@ -1228,6 +1270,7 @@ function App() {
                     onShipPreview={onShipPreview}
                     onPromoteLive={onPromoteLive}
                     onUpdateLocal={onUpdateLocal}
+                    onGitAction={onGitAction}
                     onOpsStatus={onOpsStatus}
                     onOpenPreviewUrl={onOpenPreviewUrl}
                     onOpenLiveUrl={onOpenLiveUrl}

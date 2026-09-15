@@ -21,7 +21,7 @@ test("projects: clickable GitHub status does not overlap primary action at phone
   });
 
   await app.page.waitForSelector('[data-testid="project-row"]');
-  await app.page.waitForSelector("button.gh-status.is-update");
+  await app.page.waitForSelector("button.git-glance");
   assert.equal(
     await app.page.locator(".gh-update-btn").count(),
     0,
@@ -42,7 +42,7 @@ test("projects: clickable GitHub status does not overlap primary action at phone
     const row = document.querySelector('[data-testid="project-row"]');
     if (!row) return { err: "no row" as const };
     const update = row.querySelector(
-      "button.gh-status.is-update",
+      "button.git-glance",
     ) as HTMLElement | null;
     const primary = row.querySelector(
       ".project-action-run, .project-action-open, .project-action-edit, .btn-primary",

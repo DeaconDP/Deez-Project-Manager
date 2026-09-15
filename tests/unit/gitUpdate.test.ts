@@ -40,14 +40,18 @@ test("gitUpdate: only behind rows are updateable", () => {
   );
 });
 
-test("gitUpdate: enqueue skips queued/running ids", () => {
+test("gitUpdate: enqueue stamps actionKind (default pull-behind)", () => {
   const first = enqueueGitUpdateIds([], {}, ["a", "b", "a"]);
   assert.deepEqual(first.queue, ["a", "b"]);
   assert.equal(first.jobs.a?.phase, "queued");
+  assert.equal(first.jobs.a?.actionKind, "pull-behind");
+
+  const publish = enqueueGitUpdateIds([], {}, ["c"], "publish-local");
+  assert.equal(publish.jobs.c?.actionKind, "publish-local");
 
   const second = enqueueGitUpdateIds(
     first.queue,
-    { ...first.jobs, a: { phase: "running", pct: 55 } },
+    { ...first.jobs, a: { phase: "running", pct: 55, actionKind: "pull-behind" } },
     ["a", "c"],
   );
   assert.deepEqual(second.queue, ["a", "b", "c"]);
