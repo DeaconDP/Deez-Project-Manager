@@ -405,6 +405,7 @@ pub fn update_local_project(path: String) -> Result<OpenshipActionResult, String
 const PUBLISH_COMMIT_MSG: &str = "chore: publish from Deez Project Manager";
 
 /// Commit dirty worktree if needed, then push when ahead of upstream. No force.
+/// Fetches first; if behind (or push is rejected non-fast-forward), pulls then pushes.
 #[tauri::command]
 pub fn publish_local_project(path: String) -> Result<OpenshipActionResult, String> {
     let root = PathBuf::from(path.trim());
@@ -453,33 +454,45 @@ pub fn publish_local_project(path: String) -> Result<OpenshipActionResult, Strin
         notes.push("committed".into());
     }
 
-    let ab = command("git")
-        .args(["rev-list", "--left-right", "--count", "HEAD...@{upstream}"])
-        .current_dir(&root)
-        .output();
-    let ahead = match ab {
-        Ok(out) if out.status.success() => {
-            let text = String::from_utf8_lossy(&out.stdout);
-            let parts: Vec<&str> = text.split_whitespace().collect();
-            parts
-                .first()
-                .and_then(|s| s.parse::<i32>().ok())
-                .unwrap_or(0)
+    match git_fetch(&root) {
+        Ok(()) => {}
+        Err(e) => return Ok(err_msg(e)),
+    }
+
+    let (mut ahead, behind) = git_ahead_behind(&root);
+    if behind > 0 {
+        match git_pull_integrate(&root, behind) {
+            Ok(msg) => notes.push(msg),
+            Err(e) => return Ok(err_msg(e)),
         }
-        _ => 0,
-    };
+        ahead = git_ahead_behind(&root).0;
+    }
 
     if ahead > 0 {
-        let push = command("git")
-            .args(["push"])
-            .current_dir(&root)
-            .output()
-            .map_err(|e| format!("OPSH-054: git push failed to start: {e}"))?;
-        if !push.status.success() {
-            let err = String::from_utf8_lossy(&push.stderr);
-            return Ok(err_msg(format!("OPSH-054: git push failed — {err}")));
+        match git_push(&root) {
+            Ok(()) => notes.push(format!("pushed ({ahead} ahead)")),
+            Err(err) if is_non_fast_forward_reject(&err) => {
+                // Remote moved since fetch — pull, then one retry. No force.
+                match git_pull_integrate(&root, behind.max(1)) {
+                    Ok(msg) => notes.push(msg),
+                    Err(e) => return Ok(err_msg(e)),
+                }
+                let ahead_retry = git_ahead_behind(&root).0;
+                if ahead_retry <= 0 {
+                    if notes.is_empty() {
+                        notes.push("nothing to publish".into());
+                    }
+                } else {
+                    match git_push(&root) {
+                        Ok(()) => notes.push(format!("pushed ({ahead_retry} ahead)")),
+                        Err(err2) => {
+                            return Ok(err_msg(format!("OPSH-054: git push failed — {err2}")));
+                        }
+                    }
+                }
+            }
+            Err(err) => return Ok(err_msg(format!("OPSH-054: git push failed — {err}"))),
         }
-        notes.push(format!("pushed ({ahead} ahead)"));
     } else if notes.is_empty() {
         notes.push("nothing to publish".into());
     }
@@ -492,7 +505,30 @@ pub fn publish_local_project(path: String) -> Result<OpenshipActionResult, Strin
     })
 }
 
-fn git_fetch_and_pull(root: &Path) -> Result<String, String> {
+fn git_ahead_behind(root: &Path) -> (i32, i32) {
+    let ab = command("git")
+        .args(["rev-list", "--left-right", "--count", "HEAD...@{upstream}"])
+        .current_dir(root)
+        .output();
+    match ab {
+        Ok(out) if out.status.success() => {
+            let text = String::from_utf8_lossy(&out.stdout);
+            let parts: Vec<&str> = text.split_whitespace().collect();
+            let ahead = parts
+                .first()
+                .and_then(|s| s.parse::<i32>().ok())
+                .unwrap_or(0);
+            let behind = parts
+                .get(1)
+                .and_then(|s| s.parse::<i32>().ok())
+                .unwrap_or(0);
+            (ahead, behind)
+        }
+        _ => (0, 0),
+    }
+}
+
+fn git_fetch(root: &Path) -> Result<(), String> {
     let fetch = command("git")
         .args(["fetch", "--quiet"])
         .current_dir(root)
@@ -502,32 +538,82 @@ fn git_fetch_and_pull(root: &Path) -> Result<String, String> {
         let err = String::from_utf8_lossy(&fetch.stderr);
         return Err(format!("OPSH-041: git fetch failed — {err}"));
     }
+    Ok(())
+}
 
-    let ab = command("git")
-        .args(["rev-list", "--left-right", "--count", "HEAD...@{upstream}"])
+fn git_push(root: &Path) -> Result<(), String> {
+    let push = command("git")
+        .args(["push"])
         .current_dir(root)
-        .output();
-    let behind = match ab {
-        Ok(out) if out.status.success() => {
-            let text = String::from_utf8_lossy(&out.stdout);
-            let parts: Vec<&str> = text.split_whitespace().collect();
-            parts
-                .get(1)
-                .and_then(|s| s.parse::<i32>().ok())
-                .unwrap_or(0)
-        }
-        _ => 0,
-    };
+        .output()
+        .map_err(|e| format!("git push failed to start: {e}"))?;
+    if !push.status.success() {
+        return Err(String::from_utf8_lossy(&push.stderr).into_owned());
+    }
+    Ok(())
+}
 
+fn is_non_fast_forward_reject(stderr: &str) -> bool {
+    let lower = stderr.to_ascii_lowercase();
+    lower.contains("non-fast-forward")
+        || (lower.contains("[rejected]") && lower.contains("fetch first"))
+        || lower.contains("updates were rejected")
+}
+
+/// Pull remote commits before publish. Fast-forward when possible; rebase when
+/// local is also ahead (diverged) so a later push stays non-force.
+fn git_pull_integrate(root: &Path, behind: i32) -> Result<String, String> {
+    let (ahead, _) = git_ahead_behind(root);
+    if ahead > 0 {
+        let pull = run_git_pull(root, &["pull", "--rebase", "--autostash"])?;
+        if !pull.status.success() {
+            let err = String::from_utf8_lossy(&pull.stderr);
+            return Err(format!("OPSH-042: git pull --rebase failed — {err}"));
+        }
+        return Ok(format!("pulled --rebase ({behind} behind)"));
+    }
+
+    let pull = run_git_pull(root, &["pull", "--ff-only"])?;
+    if pull.status.success() {
+        return Ok(format!("pulled ({behind} behind)"));
+    }
+    let err = String::from_utf8_lossy(&pull.stderr).into_owned();
+    if !is_index_lock_error(&err) {
+        return Err(format!("OPSH-042: git pull --ff-only failed — {err}"));
+    }
+    match reconcile_index_lock(root) {
+        ReconcileOutcome::Cleared => {
+            let pull2 = run_git_pull(root, &["pull", "--ff-only"])?;
+            if !pull2.status.success() {
+                let err2 = String::from_utf8_lossy(&pull2.stderr);
+                return Err(format!("OPSH-042: git pull --ff-only failed — {err2}"));
+            }
+            Ok(format!(
+                "pulled ({behind} behind); cleared stale index.lock"
+            ))
+        }
+        ReconcileOutcome::Refused(reason) => Err(live_lock_opsh_message(reason)),
+        ReconcileOutcome::Absent => Err(format!("OPSH-042: git pull --ff-only failed — {err}")),
+    }
+}
+
+fn run_git_pull(root: &Path, args: &[&str]) -> Result<Output, String> {
+    command("git")
+        .args(args)
+        .current_dir(root)
+        .output()
+        .map_err(|e| format!("OPSH-042: git pull failed to start: {e}"))
+}
+
+fn git_fetch_and_pull(root: &Path) -> Result<String, String> {
+    git_fetch(root)?;
+
+    let (_, behind) = git_ahead_behind(root);
     if behind <= 0 {
         return Ok("git up to date".into());
     }
 
-    let pull = command("git")
-        .args(["pull", "--ff-only"])
-        .current_dir(root)
-        .output()
-        .map_err(|e| format!("OPSH-042: git pull failed to start: {e}"))?;
+    let pull = run_git_pull(root, &["pull", "--ff-only"])?;
     if !pull.status.success() {
         let err = String::from_utf8_lossy(&pull.stderr).into_owned();
         if !is_index_lock_error(&err) {
@@ -535,11 +621,7 @@ fn git_fetch_and_pull(root: &Path) -> Result<String, String> {
         }
         match reconcile_index_lock(root) {
             ReconcileOutcome::Cleared => {
-                let pull2 = command("git")
-                    .args(["pull", "--ff-only"])
-                    .current_dir(root)
-                    .output()
-                    .map_err(|e| format!("OPSH-042: git pull failed to start: {e}"))?;
+                let pull2 = run_git_pull(root, &["pull", "--ff-only"])?;
                 if !pull2.status.success() {
                     let err2 = String::from_utf8_lossy(&pull2.stderr);
                     return Err(format!("OPSH-042: git pull --ff-only failed — {err2}"));
@@ -680,6 +762,18 @@ fn reconcile_index_lock(root: &Path) -> ReconcileOutcome {
 #[cfg(test)]
 mod index_lock_tests {
     use super::*;
+
+    #[test]
+    fn detects_non_fast_forward_push_reject() {
+        let stderr = "To https://github.com/DeaconDP/deez-micro-sim.git\n \
+             ! [rejected] main -> main (non-fast-forward)\n \
+             error: failed to push some refs\n \
+             hint: Updates were rejected because the tip of your current branch is behind";
+        assert!(is_non_fast_forward_reject(stderr));
+        assert!(!is_non_fast_forward_reject(
+            "error: failed to push some refs to 'https://example.com/repo.git'\nfatal: Authentication failed"
+        ));
+    }
 
     #[test]
     fn detects_classic_index_lock_stderr() {
