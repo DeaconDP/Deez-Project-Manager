@@ -523,11 +523,37 @@ fn priority_fetch_rank(priority: &Priority) -> u8 {
     }
 }
 
-/// Bumped on each Refresh so an in-flight background fetch queue aborts.
+/// Bumped on each full Refresh so an in-flight background fetch queue aborts.
 static GIT_FETCH_GEN: AtomicU64 = AtomicU64::new(0);
 
+fn git_sync_payload(project: &Project) -> GitSyncUpdated {
+    GitSyncUpdated {
+        id: project.id.clone(),
+        github_status: project.github_status.clone(),
+        git_ahead: project.git_ahead,
+        git_behind: project.git_behind,
+        git_branch: project.git_branch.clone(),
+        git_dirty: project.git_dirty,
+    }
+}
+
+/// Probe every eligible project locally (no network). Optionally spawn staggered fetch.
+/// `mode`: `"local"` | `"full"` (default).
 #[tauri::command]
-fn refresh_github_statuses(app: AppHandle) -> Result<Vec<Project>, String> {
+fn refresh_github_statuses(
+    app: AppHandle,
+    mode: Option<String>,
+) -> Result<Vec<Project>, String> {
+    let with_fetch = match mode.as_deref() {
+        None | Some("full") => true,
+        Some("local") => false,
+        Some(other) => {
+            return Err(format!(
+                "Unknown git refresh mode '{other}' (expected local or full)"
+            ));
+        }
+    };
+
     let mut store = store::load_store(&app)?;
     // Engine heal is separate (heal_project_engines); this path is git-only.
     let mut jobs: Vec<(usize, String)> = Vec::new();
@@ -552,13 +578,45 @@ fn refresh_github_statuses(app: AppHandle) -> Result<Vec<Project>, String> {
     }
     store::save_store(&app, &store)?;
 
-    let gen = GIT_FETCH_GEN.fetch_add(1, Ordering::SeqCst) + 1;
-    let handle = app.clone();
-    std::thread::spawn(move || {
-        run_background_git_fetch(handle, gen);
-    });
+    if with_fetch {
+        let gen = GIT_FETCH_GEN.fetch_add(1, Ordering::SeqCst) + 1;
+        let handle = app.clone();
+        std::thread::spawn(move || {
+            run_background_git_fetch(handle, gen);
+        });
+    }
 
     Ok(store.projects)
+}
+
+/// Re-probe one project's local git (no fetch). Used after Update Local / Publish.
+#[tauri::command]
+fn refresh_project_git(app: AppHandle, id: String) -> Result<GitSyncUpdated, String> {
+    let mut store = store::load_store(&app)?;
+    let project = store
+        .projects
+        .iter_mut()
+        .find(|p| p.id == id)
+        .ok_or_else(|| format!("Project not found: {id}"))?;
+
+    if project.github_url.is_none() && project.github_repo.is_none() {
+        project_fs::clear_git_sync(project, GithubStatus::None);
+    } else {
+        match &project.local_path {
+            Some(path) if !path.is_empty() => {
+                let path = path.clone();
+                let sync = project_fs::get_git_sync_info(&path, false);
+                project_fs::apply_git_sync_info(project, &sync);
+            }
+            _ => {
+                project_fs::clear_git_sync(project, GithubStatus::RemoteOnly);
+            }
+        }
+    }
+
+    let payload = git_sync_payload(project);
+    store::save_store(&app, &store)?;
+    Ok(payload)
 }
 
 fn run_background_git_fetch(app: AppHandle, gen: u64) {
@@ -613,16 +671,9 @@ fn run_background_git_fetch(app: AppHandle, gen: u64) {
             continue;
         };
         project_fs::apply_git_sync_info(project, &sync);
-        project.updated_at = chrono::Utc::now().to_rfc3339();
+        // Do not bump updated_at — git fields are device-local and must not fight mesh LWW.
 
-        let payload = GitSyncUpdated {
-            id: id.clone(),
-            github_status: project.github_status.clone(),
-            git_ahead: project.git_ahead,
-            git_behind: project.git_behind,
-            git_branch: project.git_branch.clone(),
-            git_dirty: project.git_dirty,
-        };
+        let payload = git_sync_payload(project);
 
         if store::save_store(&app, &store).is_err() {
             continue;
@@ -762,6 +813,7 @@ pub fn run() {
             import_vcc,
             import_local_folders,
             refresh_github_statuses,
+            refresh_project_git,
             add_sync_root,
             remove_sync_root,
             sync_parent_folder,

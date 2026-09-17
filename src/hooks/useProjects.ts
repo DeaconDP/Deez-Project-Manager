@@ -225,6 +225,25 @@ export function useProjects() {
     setProjects(next);
   }, []);
 
+  /** Apply a fleet git probe snapshot without re-persisting (Rust already saved). */
+  const applyGitRefreshSnapshot = useCallback((refreshed: Project[]) => {
+    const byId = new Map(refreshed.map((p) => [p.id, normalizeProject(p)]));
+    const next = latestRef.current.map((p) => {
+      const r = byId.get(p.id);
+      if (!r) return p;
+      return {
+        ...p,
+        githubStatus: r.githubStatus,
+        gitAhead: r.gitAhead,
+        gitBehind: r.gitBehind,
+        gitBranch: r.gitBranch,
+        gitDirty: r.gitDirty,
+      };
+    });
+    latestRef.current = next;
+    setProjects(next);
+  }, []);
+
   const setSyncRoots = useCallback((roots: string[]) => {
     syncRootsRef.current = roots;
     setSyncRootsState(roots);
@@ -438,6 +457,7 @@ export function useProjects() {
     replaceAll,
     applyMeshStore,
     applyGitSyncUpdate,
+    applyGitRefreshSnapshot,
     setSyncRoots,
     upsert,
     setArchived,

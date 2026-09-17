@@ -15,6 +15,7 @@ import {
   pickProjectFolder,
   pickProjectFolders,
   refreshGithubStatuses,
+  refreshProjectGit,
   removeSyncRoot,
   runProject,
   syncAllParentFolders,
@@ -129,6 +130,7 @@ function App() {
     replaceAll,
     applyMeshStore,
     applyGitSyncUpdate,
+    applyGitRefreshSnapshot,
     setSyncRoots,
     upsert,
     setArchived,
@@ -303,6 +305,54 @@ function App() {
     };
   }, [applyGitSyncUpdate]);
 
+  const lastLocalGitProbeAtRef = useRef(0);
+  const openGitFetchStartedRef = useRef(false);
+
+  // Silent full probe on first load (local + one background fetch wave).
+  useEffect(() => {
+    if (!desktop || loading || openGitFetchStartedRef.current) return;
+    openGitFetchStartedRef.current = true;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const next = await refreshGithubStatuses("full");
+        if (cancelled) return;
+        lastLocalGitProbeAtRef.current = Date.now();
+        applyGitRefreshSnapshot(next);
+      } catch {
+        // Non-fatal — manual Refresh still available.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [desktop, loading, applyGitRefreshSnapshot]);
+
+  // Cheap local re-probe when the window becomes visible again (debounced).
+  useEffect(() => {
+    if (!desktop) return;
+    const LOCAL_DEBOUNCE_MS = 30_000;
+
+    function onVisibility() {
+      if (document.visibilityState !== "visible") return;
+      if (Date.now() - lastLocalGitProbeAtRef.current < LOCAL_DEBOUNCE_MS) {
+        return;
+      }
+      void (async () => {
+        try {
+          const next = await refreshGithubStatuses("local");
+          lastLocalGitProbeAtRef.current = Date.now();
+          applyGitRefreshSnapshot(next);
+        } catch {
+          // Non-fatal.
+        }
+      })();
+    }
+
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [desktop, applyGitRefreshSnapshot]);
+
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       const target = e.target as HTMLElement | null;
@@ -322,21 +372,6 @@ function App() {
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
-
-  useEffect(() => {
-    let unlisten: (() => void) | undefined;
-    let cancelled = false;
-    void onGitSyncUpdated((update) => {
-      applyGitSyncUpdate(update);
-    }).then((fn) => {
-      if (cancelled) fn();
-      else unlisten = fn;
-    });
-    return () => {
-      cancelled = true;
-      unlisten?.();
-    };
-  }, [applyGitSyncUpdate]);
 
   async function runToolbar(
     action: ToolbarAction,
@@ -465,7 +500,8 @@ function App() {
     await runToolbar(
       "refresh",
       async () => {
-        const next = await refreshGithubStatuses();
+        const next = await refreshGithubStatuses("full");
+        lastLocalGitProbeAtRef.current = Date.now();
         replaceAll(next);
       },
       { loading: "Refreshing projects…", success: "Projects updated" },
@@ -669,25 +705,30 @@ function App() {
           });
         }
 
-        if (actionKind === "publish-local") {
-          applyGitSyncUpdate({
-            id: project.id,
-            githubStatus: "clean",
-            gitAhead: 0,
-            gitBehind: 0,
-            gitBranch: project.gitBranch ?? null,
-            gitDirty: false,
-          });
-        } else {
-          // Optimistic clear of behind — Refresh can re-probe later.
-          applyGitSyncUpdate({
-            id: project.id,
-            githubStatus: project.gitDirty ? "dirty" : "clean",
-            gitAhead: 0,
-            gitBehind: 0,
-            gitBranch: project.gitBranch ?? null,
-            gitDirty: project.gitDirty ?? false,
-          });
+        try {
+          const update = await refreshProjectGit(project.id);
+          applyGitSyncUpdate(update);
+        } catch {
+          // Fallback if re-probe fails — keep UI usable until next Refresh.
+          if (actionKind === "publish-local") {
+            applyGitSyncUpdate({
+              id: project.id,
+              githubStatus: "clean",
+              gitAhead: 0,
+              gitBehind: 0,
+              gitBranch: project.gitBranch ?? null,
+              gitDirty: false,
+            });
+          } else {
+            applyGitSyncUpdate({
+              id: project.id,
+              githubStatus: project.gitDirty ? "dirty" : "clean",
+              gitAhead: 0,
+              gitBehind: 0,
+              gitBranch: project.gitBranch ?? null,
+              gitDirty: project.gitDirty ?? false,
+            });
+          }
         }
 
         okCount += 1;
