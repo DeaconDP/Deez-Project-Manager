@@ -450,7 +450,9 @@ export function SettingsPanel({ mesh }: Props) {
           <h3 id="mesh-title">Mesh network</h3>
           <p className="panel__desc">
             One private GitHub gist is the hub. Every Mac, PC, Linux box, iPhone,
-            and Android joins with the same PAT + gist ID.
+            and Android joins with the same PAT + gist ID. Use a classic PAT with
+            <strong>gist + repo</strong> scopes (repo lets Deez import private
+            DeaconDP repos and show the lock badge).
           </p>
         </header>
 
@@ -528,7 +530,7 @@ export function SettingsPanel({ mesh }: Props) {
           <label htmlFor="mesh-pat">
             GitHub PAT{" "}
             <span className="settings-hint">
-              ({mesh.config?.hasPat ? "saved on this device" : "gist scope"})
+              ({mesh.config?.hasPat ? "saved on this device" : "gist + repo scopes"})
             </span>
           </label>
           <input

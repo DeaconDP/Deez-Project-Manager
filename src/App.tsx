@@ -28,6 +28,7 @@ import { AppChrome } from "./components/AppChrome";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { ImportMenu, type ImportKind } from "./components/ImportMenu";
 import { ListViewMenu } from "./components/ListViewMenu";
+import { VisibilityFilterMenu } from "./components/VisibilityFilterMenu";
 import { ProjectEditModal } from "./components/ProjectEditModal";
 import { ProjectsSkeleton } from "./components/ProjectsSkeleton";
 import { ProjectsTable } from "./components/ProjectsTable";
@@ -45,8 +46,9 @@ import {
   MetricsGlanceSlot,
   MetricsLiveSlot,
 } from "./monitor/components/MetricsChrome";
-import type { Project, ProjectStore } from "./types";
+import type { GithubVisibilityFilter, Project, ProjectStore } from "./types";
 import {
+  matchesGithubVisibility,
   projectOnThisHost,
   withHostStamp,
 } from "./types";
@@ -99,6 +101,7 @@ type ProcessView = "cpu" | "network" | "usb" | "spikes";
 type HostScope = "this" | "all";
 
 const HOST_SCOPE_KEY = "deez-host-scope";
+const VISIBILITY_FILTER_KEY = "deez-visibility-filter";
 
 function readHostScope(): HostScope {
   try {
@@ -106,6 +109,23 @@ function readHostScope(): HostScope {
   } catch {
     return "this";
   }
+}
+
+function readVisibilityFilter(): GithubVisibilityFilter {
+  try {
+    const raw = localStorage.getItem(VISIBILITY_FILTER_KEY);
+    if (
+      raw === "private" ||
+      raw === "public" ||
+      raw === "unknown" ||
+      raw === "all"
+    ) {
+      return raw;
+    }
+  } catch {
+    /* ignore */
+  }
+  return "all";
 }
 
 const APP_TABS: { id: AppTab; label: string }[] = [
@@ -189,6 +209,8 @@ function App() {
   const [editing, setEditing] = useState<Project | null>(null);
   const [listView, setListView] = useState<"active" | "archive">("active");
   const [hostScope, setHostScope] = useState<HostScope>(() => readHostScope());
+  const [visibilityFilter, setVisibilityFilter] =
+    useState<GithubVisibilityFilter>(() => readVisibilityFilter());
   const [archiveTarget, setArchiveTarget] = useState<Project | null>(null);
   const [boardProjectId, setBoardProjectId] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -229,6 +251,9 @@ function App() {
     if (hostScope === "this") {
       list = list.filter((p) => projectOnThisHost(p, thisHost));
     }
+    if (visibilityFilter !== "all") {
+      list = list.filter((p) => matchesGithubVisibility(p, visibilityFilter));
+    }
     const q = search.trim().toLowerCase();
     if (!q) return list;
     return list.filter((p) => {
@@ -244,12 +269,17 @@ function App() {
         p.client ?? "",
         p.host ?? "",
         p.siteId ?? "",
+        p.githubPrivate === true
+          ? "private"
+          : p.githubPrivate === false
+            ? "public"
+            : "",
       ]
         .join(" ")
         .toLowerCase();
       return hay.includes(q);
     });
-  }, [projects, search, listView, hostScope, thisHost]);
+  }, [projects, search, listView, hostScope, thisHost, visibilityFilter]);
 
   // Stamp owning host onto local-path rows that still lack one.
   useEffect(() => {
@@ -1114,6 +1144,17 @@ function App() {
                         value={listView}
                         archivedCount={archivedCount}
                         onChange={setListView}
+                      />
+                      <VisibilityFilterMenu
+                        value={visibilityFilter}
+                        onChange={(next) => {
+                          setVisibilityFilter(next);
+                          try {
+                            localStorage.setItem(VISIBILITY_FILTER_KEY, next);
+                          } catch {
+                            /* ignore */
+                          }
+                        }}
                       />
                       <div
                         className="host-scope"

@@ -255,7 +255,7 @@ export async function gistFetchContent(
   }
   if (res.status === 401 || res.status === 403) {
     throw new Error(
-      "MESH-401: GitHub rejected the PAT — need gist scope (and repo if private org).",
+      "MESH-401: GitHub rejected the PAT — need gist + repo scopes.",
     );
   }
   if (!res.ok) {

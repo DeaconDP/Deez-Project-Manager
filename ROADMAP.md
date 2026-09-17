@@ -9,7 +9,7 @@ Portfolio project dashboard (Tauri) replacing day-to-day Unity Hub / VCC list us
 - Add local folder(s) (multi-select; probe Unity version + git remote; path dedupe + link GitHub-only rows)
 - Open Unity project / reveal in Explorer
 - Run `run.bat` / `run.command` when present (primary); Open in ··· menu
-- Import public repos from `DeaconDP` + refresh local git status (ahead/behind counts; staggered background fetch)
+- Import repos from `DeaconDP` (public always; private with mesh PAT `gist` + `repo`) + refresh local git status (ahead/behind; `githubPrivate` lock badge)
 - Import Unity Hub + VCC project lists (dedupe by path; link onto GitHub-only rows)
 - Slim brand chrome + command bar UX (Import menu, search shortcut)
 - Sync parent folders: persistent roots list; scan immediate children and add missing projects
@@ -78,6 +78,7 @@ Portfolio project dashboard (Tauri) replacing day-to-day Unity Hub / VCC list us
 - [x] GitHub PAT in OS-protected credential store (desktop) / device storage (PWA)
 - [x] Device roster (peers) + Join mesh / Sync now in Settings
 - [x] Phone / browser PWA node (`scripts/serve-mesh.sh`) shares the same gist
+- [x] Private DeaconDP repo import + `githubPrivate` via same PAT (`gist` + `repo`)
 - Rate-limit handling with authenticated API (PAT path covers most cases)
 - Open PR count enrichment on project rows (GitHub API; PAT for private) — never GitHub Actions / workflow checks
 - Optional LAN peer discovery (still hub-via-gist; true P2P later if needed)
@@ -102,6 +103,7 @@ Portfolio project dashboard (Tauri) replacing day-to-day Unity Hub / VCC list us
 ### Classification & views
 - Richer priority presets, tags, active vs archive filters
 - Saved views / search presets
+- [x] GitHub visibility on rows (`githubPrivate`) + Private/Public/Unknown filter + edit toggle
 
 ### Multi-root scan
 - ~~Watch folders (e.g. VRC projects roots) and auto-discover Unity projects~~ — manual Sync parents shipped (immediate children; Add/Remove roots)
@@ -163,7 +165,7 @@ Portfolio project dashboard (Tauri) replacing day-to-day Unity Hub / VCC list us
 - 2026-09-02: True LAN P2P / mDNS mesh — hub-via-private-gist is enough for Dale’s 7-device set; local paths stay per-device (`src/lib/mesh.ts`).
 - 2026-07-15: Full Hub/VCC package + create-project — out of v1 scope; list import is shipped (`src-tauri/src/hub_vcc.rs`).
 - 2026-07-15: Cashflow months/Gross/Nett UI — spreadsheet fields kept optional on Project; ledger epic later.
-- 2026-07-15: GitHub PAT / private repo import — public DeaconDP import only in v1 (`src-tauri/src/github.rs`).
+- 2026-07-15: GitHub PAT / private repo import — shipped 2026-09-17 via mesh PAT (`gist` + `repo`) + `githubPrivate` on Project (`src-tauri/src/github.rs`).
 - 2026-08-21: Open PR counts on rows — deferred until Sync PAT work; never wire GitHub Actions (`src-tauri/src/github.rs`).
 - 2026-07-15: Learn / Tools sidebar stubs — superseded by Projects/Overview/Processes/Fuel/Settings tabs (`src/App.tsx`).
 - 2026-07-15: Multi-root filesystem watch / auto-discover — manual Sync parents shipped instead (`src/components/SyncMenu.tsx`).

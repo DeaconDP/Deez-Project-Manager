@@ -34,6 +34,7 @@ function normalizeProject(p: Project): Project {
     gitBehind: p.gitBehind ?? 0,
     gitBranch: p.gitBranch ?? null,
     gitDirty: p.gitDirty ?? false,
+    githubPrivate: p.githubPrivate ?? null,
     category: normalizeCategory(p.category),
     priority: normalizePriority(p.priority),
     status: normalizeStatus(p.status),

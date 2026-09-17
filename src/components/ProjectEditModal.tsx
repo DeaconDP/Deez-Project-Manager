@@ -12,6 +12,7 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import { PrioritySelect } from "./PrioritySelect";
 import { StatusSelect } from "./StatusSelect";
 import { Spinner } from "./Spinner";
+import { Toggle } from "../monitor/components/Toggle";
 
 interface Props {
   project: Project | null;
@@ -40,6 +41,7 @@ export function ProjectEditModal({ project, open, onClose, onSave }: Props) {
         ...project,
         category: normalizeCategory(project.category),
         status: normalizeStatus(project.status),
+        githubPrivate: project.githubPrivate ?? null,
       };
       setDraft(next);
       draftRef.current = next;
@@ -298,11 +300,19 @@ export function ProjectEditModal({ project, open, onClose, onSave }: Props) {
                     } else {
                       update("githubRepo", null);
                       update("githubStatus", "none");
+                      update("githubPrivate", null);
                     }
                   }}
                   placeholder="https://github.com/…"
                 />
               </label>
+              <Toggle
+                id="project-github-private"
+                label="Private on GitHub"
+                description="Import / Refresh overwrites this from the API when a PAT (gist + repo) is saved."
+                checked={draft.githubPrivate === true}
+                onChange={(next) => update("githubPrivate", next)}
+              />
             </fieldset>
 
             <fieldset className="form-section">

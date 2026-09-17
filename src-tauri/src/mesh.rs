@@ -209,6 +209,11 @@ pub fn mesh_clear_pat(app: AppHandle) -> Result<MeshConfigPublic, String> {
 /// Returns the PAT for mesh HTTP from the frontend (desktop only; never logged).
 #[tauri::command]
 pub fn mesh_get_pat(app: AppHandle) -> Result<Option<String>, String> {
-    let cfg = load_config(&app)?;
-    Ok(credentials::retrieve(cfg.credential_id.as_deref()))
+    Ok(read_pat(&app))
+}
+
+/// Internal: read saved mesh GitHub PAT (also used for private repo import).
+pub fn read_pat(app: &AppHandle) -> Option<String> {
+    let cfg = load_config(app).ok()?;
+    credentials::retrieve(cfg.credential_id.as_deref())
 }

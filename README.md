@@ -56,15 +56,21 @@ Force a rebuild: `run.bat --rebuild` / `./run.command --rebuild`.
 
 ## Features
 
-- Projects table with Priority, Platform, Category, GitHub status (ahead/behind)
+- Projects table with Priority, Platform, Category, GitHub status (ahead/behind; private lock)
 - Drag-and-drop reorder; autosave to app data
-- Import from Unity Hub / VCC; add local folders; GitHub import
+- Import from Unity Hub / VCC; add local folders; GitHub import (private + public with PAT)
 - Ada-Monitor: Overview, Processes, Fuel, Settings
 - **Mesh network**: one private GitHub gist links all devices (Macs, PCs, Linux, iPhone, Android). Projects + kanban tasks sync; local folder paths stay on each machine.
 
+### Private / sensitive repos (solo)
+
+Keep WIP or sensitive utilities (**deez-accountant**, **deez-publicist**, **emily-os**, …) **Private** under `DeaconDP` — do not mark them Public. Share across your own machines via SSH/HTTPS clones, this app’s mesh gist, and Tailscale — not by inviting collaborators.
+
+Deez-PM shows a lock on private rows and can import them when Settings has a PAT with **`gist` + `repo`** scopes. Import / Refresh overwrites the Private toggle from the API.
+
 ### Link your devices (mesh)
 
-1. Create a GitHub PAT with **`gist`** scope (classic) — never commit it.
+1. Create a GitHub PAT with **`gist` + `repo`** scopes (classic) — never commit it.
 2. On the first device → **Settings → Mesh network** → paste PAT → **Save PAT** → **Sync now** (creates a private gist).
 3. Copy the **Gist ID** shown after sync.
 4. On every other device (and the phone PWA): same PAT → paste that Gist ID → **Save name / gist** → **Join mesh** → **Sync now**.

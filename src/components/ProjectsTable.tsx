@@ -988,22 +988,57 @@ function ProjectDataCells({
       <Cell className="col-category">{category}</Cell>
       <Cell className="col-github">
         <div className="gh-cell">
-          {glance == null ? (
+          {glance == null && project.githubPrivate !== true ? (
             <EmptyValue />
           ) : (
-            <GitGlanceControl
-              spec={
-                archivedView || !onGitAction
-                  ? { ...glance, actionKind: null }
-                  : glance
-              }
-              busy={updating}
-              onAction={
-                onGitAction
-                  ? (kind) => onGitAction(project, kind)
-                  : undefined
-              }
-            />
+            <div className="gh-cell-glance">
+              {project.githubPrivate === true ? (
+                <span
+                  className="gh-private-lock"
+                  title="Private on GitHub"
+                  aria-label="Private on GitHub"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 14 14"
+                    fill="none"
+                    aria-hidden="true"
+                  >
+                    <rect
+                      x="3"
+                      y="6.25"
+                      width="8"
+                      height="5.75"
+                      rx="1.25"
+                      stroke="currentColor"
+                      strokeWidth="1.25"
+                    />
+                    <path
+                      d="M4.75 6.25V4.5a2.25 2.25 0 0 1 4.5 0v1.75"
+                      stroke="currentColor"
+                      strokeWidth="1.25"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                </span>
+              ) : null}
+              {glance == null ? null : (
+                <GitGlanceControl
+                  spec={
+                    archivedView || !onGitAction
+                      ? { ...glance, actionKind: null }
+                      : glance
+                  }
+                  busy={updating}
+                  onAction={
+                    onGitAction
+                      ? (kind) => onGitAction(project, kind)
+                      : undefined
+                  }
+                />
+              )}
+            </div>
           )}
           {phaseLabel ? (
             <span className="gh-update-phase" title={gitUpdateJob?.message}>

@@ -89,6 +89,9 @@ pub struct Project {
     pub unity_version: Option<String>,
     pub github_url: Option<String>,
     pub github_repo: Option<String>,
+    /// Last known GitHub visibility. None = unknown (not yet probed).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub github_private: Option<bool>,
     pub github_status: GithubStatus,
     #[serde(default)]
     pub git_ahead: i32,
