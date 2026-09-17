@@ -46,6 +46,14 @@
   --status-broken: #ff6b3d;
   --status-delete: #9a6b78;
   --grid-line: rgba(42, 46, 58, 0.45);
+  /* Shared by icon-only priority/status/category squares and git glance circles */
+  --field-icon-size: 36px;
+  --git-circle: var(--field-icon-size);
+  /* Equal air on both sides of the git glance (category ↔ git ↔ Run) */
+  --git-side-gutter: 10px;
+  --git-clean: #3dd68c;
+  --git-publish: #c084fc;
+  --git-update: #ffc857;
 }
 
 *,
@@ -1194,7 +1202,7 @@ button[aria-busy="true"]:disabled {
   --col-priority: 5.25rem;
   --col-status: 6rem;
   --col-category: 5rem;
-  --col-github: 5.5rem;
+  --col-github: calc(5.5rem + 2 * var(--git-side-gutter));
   --col-actions: 8.5rem;
   --cols:
     var(--col-drag) var(--col-fav) var(--col-platform) minmax(0, 1.8fr)
@@ -1318,7 +1326,14 @@ button[aria-busy="true"]:disabled {
 }
 
 .project-row .col-actions {
-  justify-content: flex-end;
+  /* Keep Run immediately after the git gutter so left/right gaps match */
+  justify-content: flex-start;
+}
+
+.projects-table-header-row .col-github,
+.project-row .col-github {
+  padding-inline: var(--git-side-gutter);
+  overflow: hidden;
 }
 
 .col-priority,
@@ -1765,103 +1780,98 @@ button[aria-busy="true"]:disabled {
   background: rgba(154, 107, 120, 0.14);
 }
 
-.gh-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  max-width: 100%;
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: var(--muted);
-  line-height: 1.2;
-}
-
-.gh-dot {
-  flex-shrink: 0;
-  width: 6px;
-  height: 6px;
-  border-radius: 1px;
-  background: currentColor;
-  opacity: 0.9;
-}
-
-.gh-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.gh-clean {
-  color: var(--accent);
-}
-
-.gh-dirty {
-  color: #b8956c;
-}
-
-.gh-diverged,
-.gh-error {
-  color: var(--accent-2);
-}
-
-.gh-ahead {
-  color: var(--accent);
-}
-
-.gh-behind {
-  color: #ffc857;
-}
-
-.gh-remote-only {
-  color: #9aa0b0;
-}
-
 .gh-cell {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: flex-start;
   gap: 4px;
   min-width: 0;
   width: 100%;
-}
-
-.gh-cell .gh-status {
   max-width: 100%;
+  overflow: hidden;
 }
 
-.gh-update-btn {
-  flex-shrink: 0;
-  padding: 2px 8px;
-  font-size: 0.72rem;
-  border-color: color-mix(in srgb, #ffc857 55%, var(--border));
-  color: #ffc857;
-  background: rgba(255, 200, 87, 0.1);
-}
-
-.gh-update-btn.is-icon {
+.git-glance {
   box-sizing: border-box;
-  width: 100%;
-  max-width: 40px;
-  min-width: 0;
-  min-height: 32px;
-  padding: 0;
-  display: inline-grid;
+  width: var(--field-icon-size);
+  height: var(--field-icon-size);
+  min-width: var(--field-icon-size);
+  max-width: 100%;
+  border-radius: 50%;
+  display: grid;
   place-items: center;
+  flex-shrink: 0;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.gh-update-btn:hover:not(:disabled) {
-  border-color: #ffc857;
-  background: rgba(255, 200, 87, 0.18);
+.git-glance.tone-ok {
+  color: var(--git-clean);
+  border-color: color-mix(in srgb, var(--git-clean) 45%, transparent);
+  background: color-mix(in srgb, var(--git-clean) 12%, transparent);
+}
+
+.git-glance.tone-outbound {
+  color: var(--git-publish);
+  border-color: color-mix(in srgb, var(--git-publish) 45%, transparent);
+  background: color-mix(in srgb, var(--git-publish) 12%, transparent);
+}
+
+.git-glance.tone-inbound {
+  color: var(--git-update);
+  border-color: color-mix(in srgb, var(--git-update) 45%, transparent);
+  background: color-mix(in srgb, var(--git-update) 12%, transparent);
+}
+
+.git-glance.tone-warn {
+  color: #ffb454;
+  border-color: color-mix(in srgb, #ffb454 40%, transparent);
+  background: color-mix(in srgb, #ffb454 10%, transparent);
+}
+
+.git-glance.tone-muted {
+  color: #9aa0b0;
+}
+
+.git-glance.tone-danger {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+
+button.git-glance {
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+button.git-glance:hover:not(:disabled) {
+  filter: brightness(1.14);
+}
+
+button.git-glance:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+button.git-glance:disabled {
+  opacity: 0.55;
+  cursor: wait;
 }
 
 .gh-update-phase {
   font-size: 0.68rem;
   color: var(--muted);
   font-family: var(--font-mono);
+  text-align: center;
 }
 
 .git-update-bar {
   width: 100%;
+  max-width: var(--field-icon-size);
   height: 3px;
   border-radius: 1px;
   background: rgba(255, 255, 255, 0.06);
@@ -1870,19 +1880,34 @@ button[aria-busy="true"]:disabled {
 
 .git-update-bar__fill {
   height: 100%;
-  background: #ffc857;
+  background: var(--git-update);
   transition: width 0.25s ease;
+}
+
+.git-update-bar.is-publish .git-update-bar__fill {
+  background: var(--git-publish);
 }
 
 .git-update-bar.is-running .git-update-bar__fill {
   background: linear-gradient(
     90deg,
-    #ffc857 0%,
-    #ffe0a0 45%,
-    #ffc857 100%
+    transparent,
+    var(--git-update),
+    transparent
   );
   background-size: 200% 100%;
   animation: git-update-shimmer 1.1s linear infinite;
+  width: 100% !important;
+}
+
+.git-update-bar.is-publish.is-running .git-update-bar__fill {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--git-publish),
+    transparent
+  );
+  background-size: 200% 100%;
 }
 
 .git-update-bar.is-done .git-update-bar__fill {
@@ -1894,7 +1919,7 @@ button[aria-busy="true"]:disabled {
 }
 
 .git-update-bar.is-queued .git-update-bar__fill {
-  background: color-mix(in srgb, #ffc857 55%, var(--muted));
+  background: color-mix(in srgb, var(--git-update) 55%, var(--muted));
 }
 
 @keyframes git-update-shimmer {
@@ -2141,9 +2166,11 @@ button[aria-busy="true"]:disabled {
 .priority-picker.is-icon-only .priority-picker-trigger {
   display: inline-grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
-  min-width: 36px;
+  box-sizing: border-box;
+  width: var(--field-icon-size);
+  height: var(--field-icon-size);
+  min-width: var(--field-icon-size);
+  max-width: 100%;
   padding: 0;
   justify-content: center;
 }
@@ -2156,9 +2183,11 @@ button[aria-busy="true"]:disabled {
 .badge.badge-icon {
   display: inline-grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
-  min-width: 36px;
+  box-sizing: border-box;
+  width: var(--field-icon-size);
+  height: var(--field-icon-size);
+  min-width: var(--field-icon-size);
+  max-width: 100%;
   padding: 0;
 }
 
@@ -2166,18 +2195,6 @@ button[aria-busy="true"]:disabled {
 .field-header-icon {
   display: block;
   flex-shrink: 0;
-}
-
-.gh-status.gh-icon-only {
-  display: inline-grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  gap: 0;
-}
-
-.gh-status.gh-icon-only .field-icon {
-  color: inherit;
 }
 
 .priority-picker-trigger:hover:not(:disabled) {
@@ -2807,13 +2824,6 @@ button[aria-busy="true"]:disabled {
   padding: 6px 10px;
 }
 
-.app-shell[data-layout="narrow"] .gh-update-btn.is-icon,
-.app-shell[data-layout="phone"] .gh-update-btn.is-icon {
-  padding: 0;
-  min-height: 40px;
-  max-width: 40px;
-}
-
 /* Sticky identity columns while the rest of the table scrolls */
 .app-shell[data-layout="narrow"] .projects-table .col-drag,
 .app-shell[data-layout="narrow"] .projects-table .col-fav,
@@ -2914,14 +2924,21 @@ button[aria-busy="true"]:disabled {
   overflow-x: auto;
 }
 
+.app-shell[data-layout="phone"] {
+  --field-icon-size: 40px;
+}
+
 .app-shell[data-layout="phone"] .projects-table {
   --col-drag: 3.5rem;
-  --col-fav: 36px;
-  --col-platform: 2.75rem;
-  --col-priority: 2.75rem;
-  --col-status: 2.75rem;
-  --col-category: 2.75rem;
-  --col-github: 2.75rem;
+  --col-fav: var(--field-icon-size);
+  /* Icon + cell padding-inline (2px×2) */
+  --col-icon-track: calc(var(--field-icon-size) + 4px);
+  --col-platform: var(--col-icon-track);
+  --col-priority: var(--col-icon-track);
+  --col-status: var(--col-icon-track);
+  --col-category: var(--col-icon-track);
+  /* Icon + equal side gutters (category ↔ git ↔ Run) */
+  --col-github: calc(var(--field-icon-size) + 2 * var(--git-side-gutter));
   --col-actions: 7.25rem;
   --cols:
     var(--col-drag) var(--col-fav) var(--col-platform) minmax(0, 1.4fr)
@@ -2934,10 +2951,18 @@ button[aria-busy="true"]:disabled {
 .app-shell[data-layout="phone"] .projects-table.is-icon-fields .col-platform,
 .app-shell[data-layout="phone"] .projects-table.is-icon-fields .col-priority,
 .app-shell[data-layout="phone"] .projects-table.is-icon-fields .col-status,
-.app-shell[data-layout="phone"] .projects-table.is-icon-fields .col-category,
-.app-shell[data-layout="phone"] .projects-table.is-icon-fields .col-github {
+.app-shell[data-layout="phone"] .projects-table.is-icon-fields .col-category {
   justify-content: center;
   padding-inline: 2px;
+}
+
+.app-shell[data-layout="phone"] .projects-table.is-icon-fields .col-github {
+  justify-content: center;
+  padding-inline: var(--git-side-gutter);
+}
+
+.app-shell[data-layout="phone"] .projects-table.is-icon-fields .col-actions {
+  padding-inline-start: 2px;
 }
 
 .app-shell[data-layout="phone"] .projects-table.is-icon-fields .platform-cell {
@@ -2954,18 +2979,7 @@ button[aria-busy="true"]:disabled {
   max-width: 100%;
 }
 
-.app-shell[data-layout="phone"] .priority-picker.is-icon-only .priority-picker-trigger {
-  width: 40px;
-  height: 40px;
-  min-width: 40px;
-}
-
-.app-shell[data-layout="phone"] .gh-status.gh-icon-only,
-.app-shell[data-layout="phone"] .badge.badge-icon {
-  width: 40px;
-  height: 40px;
-  min-width: 40px;
-}
+/* Icon sizes inherit --field-icon-size from .app-shell[data-layout="phone"] */
 
 .app-shell[data-layout="narrow"] .modal,
 .app-shell[data-layout="phone"] .modal {

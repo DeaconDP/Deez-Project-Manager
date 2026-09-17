@@ -1,7 +1,18 @@
-import type { GithubStatus, Project } from "../types";
+import type { Project } from "../types";
+import {
+  type GitActionKind,
+  projectNeedsPullBehind,
+} from "./gitGlance.ts";
 
-/** Pull-behind statuses where Update Local (ff-only) can catch up. */
-const UPDATEABLE: ReadonlySet<GithubStatus> = new Set(["behind"]);
+export type { GitActionKind };
+export { projectNeedsPullBehind };
+
+/** Behind-only alias for toolbar Update-all. */
+export function projectNeedsGitUpdate(
+  project: Pick<Project, "localPath" | "githubStatus" | "gitBehind">,
+): boolean {
+  return projectNeedsPullBehind(project);
+}
 
 export type GitUpdatePhase = "queued" | "running" | "done" | "error";
 
@@ -10,14 +21,7 @@ export interface GitUpdateJob {
   /** 0–100 glance fill; running is indeterminate in CSS. */
   pct: number;
   message?: string;
-}
-
-export function projectNeedsGitUpdate(
-  project: Pick<Project, "localPath" | "githubStatus" | "gitBehind">,
-): boolean {
-  if (!project.localPath?.trim()) return false;
-  if (!UPDATEABLE.has(project.githubStatus)) return false;
-  return (project.gitBehind ?? 0) > 0 || project.githubStatus === "behind";
+  actionKind?: GitActionKind;
 }
 
 export function gitUpdatePct(phase: GitUpdatePhase): number {
@@ -32,11 +36,12 @@ export function gitUpdatePct(phase: GitUpdatePhase): number {
   }
 }
 
-/** Stable unique append — skip ids already queued/running. */
+/** Stable unique append — skip ids already queued/running. Default kind is pull-behind. */
 export function enqueueGitUpdateIds(
   currentQueue: string[],
   jobs: Record<string, GitUpdateJob>,
   ids: string[],
+  actionKind: GitActionKind = "pull-behind",
 ): { queue: string[]; jobs: Record<string, GitUpdateJob> } {
   const queue = [...currentQueue];
   const nextJobs = { ...jobs };
@@ -47,7 +52,11 @@ export function enqueueGitUpdateIds(
     if (existing?.phase === "running" || existing?.phase === "queued") continue;
     queue.push(id);
     pending.add(id);
-    nextJobs[id] = { phase: "queued", pct: gitUpdatePct("queued") };
+    nextJobs[id] = {
+      phase: "queued",
+      pct: gitUpdatePct("queued"),
+      actionKind,
+    };
   }
   return { queue, jobs: nextJobs };
 }

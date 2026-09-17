@@ -402,7 +402,136 @@ pub fn update_local_project(path: String) -> Result<OpenshipActionResult, String
     })
 }
 
-fn git_fetch_and_pull(root: &Path) -> Result<String, String> {
+const PUBLISH_COMMIT_MSG: &str = "chore: publish from Deez Project Manager";
+
+/// Commit dirty worktree if needed, then push when ahead of upstream. No force.
+/// Fetches first; if behind (or push is rejected non-fast-forward), pulls then pushes.
+#[tauri::command]
+pub fn publish_local_project(path: String) -> Result<OpenshipActionResult, String> {
+    let root = PathBuf::from(path.trim());
+    if !root.is_dir() {
+        return Ok(err_msg("OPSH-050: local path missing or not a directory"));
+    }
+    if !root.join(".git").exists() {
+        return Ok(err_msg("OPSH-050: no .git directory"));
+    }
+
+    let mut notes: Vec<String> = Vec::new();
+
+    let porcelain = command("git")
+        .args(["status", "--porcelain"])
+        .current_dir(&root)
+        .output()
+        .map_err(|e| format!("OPSH-051: git status failed to start: {e}"))?;
+    if !porcelain.status.success() {
+        let err = String::from_utf8_lossy(&porcelain.stderr);
+        return Ok(err_msg(format!("OPSH-051: git status failed — {err}")));
+    }
+    let dirty = !String::from_utf8_lossy(&porcelain.stdout)
+        .trim()
+        .is_empty();
+
+    if dirty {
+        match run_git_with_lock_retry(&root, &["add", "-A"], "OPSH-052", "git add") {
+            Ok(r) => {
+                if r.cleared_stale_lock {
+                    notes.push("cleared stale index.lock".into());
+                }
+            }
+            Err(e) => return Ok(err_msg(e)),
+        }
+
+        match run_git_with_lock_retry(
+            &root,
+            &["commit", "-m", PUBLISH_COMMIT_MSG],
+            "OPSH-053",
+            "git commit",
+        ) {
+            Ok(r) => {
+                if r.cleared_stale_lock {
+                    notes.push("cleared stale index.lock".into());
+                }
+            }
+            Err(e) => return Ok(err_msg(e)),
+        }
+        notes.push("committed".into());
+    }
+
+    match git_fetch(&root) {
+        Ok(()) => {}
+        Err(e) => return Ok(err_msg(e)),
+    }
+
+    let (mut ahead, behind) = git_ahead_behind(&root);
+    if behind > 0 {
+        match git_pull_integrate(&root, behind) {
+            Ok(msg) => notes.push(msg),
+            Err(e) => return Ok(err_msg(e)),
+        }
+        ahead = git_ahead_behind(&root).0;
+    }
+
+    if ahead > 0 {
+        match git_push(&root) {
+            Ok(()) => notes.push(format!("pushed ({ahead} ahead)")),
+            Err(err) if is_non_fast_forward_reject(&err) => {
+                // Remote moved since fetch — pull, then one retry. No force.
+                match git_pull_integrate(&root, behind.max(1)) {
+                    Ok(msg) => notes.push(msg),
+                    Err(e) => return Ok(err_msg(e)),
+                }
+                let ahead_retry = git_ahead_behind(&root).0;
+                if ahead_retry <= 0 {
+                    if notes.is_empty() {
+                        notes.push("nothing to publish".into());
+                    }
+                } else {
+                    match git_push(&root) {
+                        Ok(()) => notes.push(format!("pushed ({ahead_retry} ahead)")),
+                        Err(err2) => {
+                            return Ok(err_msg(format!("OPSH-054: git push failed — {err2}")));
+                        }
+                    }
+                }
+            }
+            Err(err) => return Ok(err_msg(format!("OPSH-054: git push failed — {err}"))),
+        }
+    } else if notes.is_empty() {
+        notes.push("nothing to publish".into());
+    }
+
+    Ok(OpenshipActionResult {
+        ok: true,
+        message: notes.join(" · "),
+        detail: None,
+        last_build_at: None,
+    })
+}
+
+fn git_ahead_behind(root: &Path) -> (i32, i32) {
+    let ab = command("git")
+        .args(["rev-list", "--left-right", "--count", "HEAD...@{upstream}"])
+        .current_dir(root)
+        .output();
+    match ab {
+        Ok(out) if out.status.success() => {
+            let text = String::from_utf8_lossy(&out.stdout);
+            let parts: Vec<&str> = text.split_whitespace().collect();
+            let ahead = parts
+                .first()
+                .and_then(|s| s.parse::<i32>().ok())
+                .unwrap_or(0);
+            let behind = parts
+                .get(1)
+                .and_then(|s| s.parse::<i32>().ok())
+                .unwrap_or(0);
+            (ahead, behind)
+        }
+        _ => (0, 0),
+    }
+}
+
+fn git_fetch(root: &Path) -> Result<(), String> {
     let fetch = command("git")
         .args(["fetch", "--quiet"])
         .current_dir(root)
@@ -412,61 +541,78 @@ fn git_fetch_and_pull(root: &Path) -> Result<String, String> {
         let err = String::from_utf8_lossy(&fetch.stderr);
         return Err(format!("OPSH-041: git fetch failed — {err}"));
     }
+    Ok(())
+}
 
-    let ab = command("git")
-        .args(["rev-list", "--left-right", "--count", "HEAD...@{upstream}"])
+fn git_push(root: &Path) -> Result<(), String> {
+    let push = command("git")
+        .args(["push"])
         .current_dir(root)
-        .output();
-    let behind = match ab {
-        Ok(out) if out.status.success() => {
-            let text = String::from_utf8_lossy(&out.stdout);
-            let parts: Vec<&str> = text.split_whitespace().collect();
-            parts
-                .get(1)
-                .and_then(|s| s.parse::<i32>().ok())
-                .unwrap_or(0)
-        }
-        _ => 0,
-    };
+        .output()
+        .map_err(|e| format!("git push failed to start: {e}"))?;
+    if !push.status.success() {
+        return Err(String::from_utf8_lossy(&push.stderr).into_owned());
+    }
+    Ok(())
+}
 
+fn is_non_fast_forward_reject(stderr: &str) -> bool {
+    let lower = stderr.to_ascii_lowercase();
+    lower.contains("non-fast-forward")
+        || (lower.contains("[rejected]") && lower.contains("fetch first"))
+        || lower.contains("updates were rejected")
+}
+
+/// Pull remote commits before publish. Fast-forward when possible; rebase when
+/// local is also ahead (diverged) so a later push stays non-force.
+fn git_pull_integrate(root: &Path, behind: i32) -> Result<String, String> {
+    let (ahead, _) = git_ahead_behind(root);
+    if ahead > 0 {
+        let pull = run_git_with_lock_retry(
+            root,
+            &["pull", "--rebase", "--autostash"],
+            "OPSH-042",
+            "git pull --rebase",
+        )?;
+        let mut msg = format!("pulled --rebase ({behind} behind)");
+        if pull.cleared_stale_lock {
+            msg.push_str("; cleared stale index.lock");
+        }
+        return Ok(msg);
+    }
+
+    let pull = run_git_with_lock_retry(
+        root,
+        &["pull", "--ff-only"],
+        "OPSH-042",
+        "git pull --ff-only",
+    )?;
+    let mut msg = format!("pulled ({behind} behind)");
+    if pull.cleared_stale_lock {
+        msg.push_str("; cleared stale index.lock");
+    }
+    Ok(msg)
+}
+
+fn git_fetch_and_pull(root: &Path) -> Result<String, String> {
+    git_fetch(root)?;
+
+    let (_, behind) = git_ahead_behind(root);
     if behind <= 0 {
         return Ok("git up to date".into());
     }
 
-    let pull = command("git")
-        .args(["pull", "--ff-only"])
-        .current_dir(root)
-        .output()
-        .map_err(|e| format!("OPSH-042: git pull failed to start: {e}"))?;
-    if !pull.status.success() {
-        let err = String::from_utf8_lossy(&pull.stderr).into_owned();
-        if !is_index_lock_error(&err) {
-            return Err(format!("OPSH-042: git pull --ff-only failed — {err}"));
-        }
-        match reconcile_index_lock(root) {
-            ReconcileOutcome::Cleared => {
-                let pull2 = command("git")
-                    .args(["pull", "--ff-only"])
-                    .current_dir(root)
-                    .output()
-                    .map_err(|e| format!("OPSH-042: git pull failed to start: {e}"))?;
-                if !pull2.status.success() {
-                    let err2 = String::from_utf8_lossy(&pull2.stderr);
-                    return Err(format!("OPSH-042: git pull --ff-only failed — {err2}"));
-                }
-                return Ok(format!(
-                    "pulled ({behind} behind); cleared stale index.lock"
-                ));
-            }
-            ReconcileOutcome::Refused(reason) => {
-                return Err(live_lock_opsh_message(reason));
-            }
-            ReconcileOutcome::Absent => {
-                return Err(format!("OPSH-042: git pull --ff-only failed — {err}"));
-            }
-        }
+    let pull = run_git_with_lock_retry(
+        root,
+        &["pull", "--ff-only"],
+        "OPSH-042",
+        "git pull --ff-only",
+    )?;
+    let mut msg = format!("pulled ({behind} behind)");
+    if pull.cleared_stale_lock {
+        msg.push_str("; cleared stale index.lock");
     }
-    Ok(format!("pulled ({behind} behind)"))
+    Ok(msg)
 }
 
 const FRESH_MTIME: Duration = Duration::from_secs(120);
@@ -530,16 +676,62 @@ fn classify_index_lock(facts: IndexLockFacts) -> IndexLockState {
     }
 }
 
-fn live_lock_opsh_message(reason: LiveLockReason) -> String {
-    let detail = match reason {
-        LiveLockReason::HolderOpen => {
-            ".git/index.lock is held open by another process"
+fn live_lock_opsh_message(opsh_code: &str, _reason: LiveLockReason) -> String {
+    format!(
+        "Git is busy in this project. Wait for Cursor/Terminal git to finish, then try again. ({opsh_code})"
+    )
+}
+
+struct GitLockRetryResult {
+    #[allow(dead_code)]
+    output: Output,
+    cleared_stale_lock: bool,
+}
+
+/// Run a git command; on classic index.lock failure, clear a proven-stale lock
+/// and retry once. Live locks get a plain-language refuse message.
+fn run_git_with_lock_retry(
+    root: &Path,
+    args: &[&str],
+    opsh_code: &str,
+    op_label: &str,
+) -> Result<GitLockRetryResult, String> {
+    let first = command("git")
+        .args(args)
+        .current_dir(root)
+        .output()
+        .map_err(|e| format!("{opsh_code}: {op_label} failed to start: {e}"))?;
+    if first.status.success() {
+        return Ok(GitLockRetryResult {
+            output: first,
+            cleared_stale_lock: false,
+        });
+    }
+
+    let err = String::from_utf8_lossy(&first.stderr).into_owned();
+    if !is_index_lock_error(&err) {
+        return Err(format!("{opsh_code}: {op_label} failed — {err}"));
+    }
+
+    match reconcile_index_lock(root) {
+        ReconcileOutcome::Cleared => {
+            let second = command("git")
+                .args(args)
+                .current_dir(root)
+                .output()
+                .map_err(|e| format!("{opsh_code}: {op_label} failed to start: {e}"))?;
+            if !second.status.success() {
+                let err2 = String::from_utf8_lossy(&second.stderr);
+                return Err(format!("{opsh_code}: {op_label} failed — {err2}"));
+            }
+            Ok(GitLockRetryResult {
+                output: second,
+                cleared_stale_lock: true,
+            })
         }
-        LiveLockReason::Indeterminate => {
-            ".git/index.lock looks live; refusing to clear it"
-        }
-    };
-    format!("OPSH-042: git pull --ff-only failed - {detail}")
+        ReconcileOutcome::Refused(reason) => Err(live_lock_opsh_message(opsh_code, reason)),
+        ReconcileOutcome::Absent => Err(format!("{opsh_code}: {op_label} failed — {err}")),
+    }
 }
 
 /// Missing/failing `lsof` is not a holder.
@@ -592,8 +784,26 @@ mod index_lock_tests {
     use super::*;
 
     #[test]
+    fn detects_non_fast_forward_push_reject() {
+        let stderr = "To https://github.com/DeaconDP/deez-micro-sim.git\n \
+             ! [rejected] main -> main (non-fast-forward)\n \
+             error: failed to push some refs\n \
+             hint: Updates were rejected because the tip of your current branch is behind";
+        assert!(is_non_fast_forward_reject(stderr));
+        assert!(!is_non_fast_forward_reject(
+            "error: failed to push some refs to 'https://example.com/repo.git'\nfatal: Authentication failed"
+        ));
+    }
+
+    #[test]
     fn detects_classic_index_lock_stderr() {
         let stderr = "error: Unable to create '/repo/.git/index.lock': File exists.";
+        assert!(is_index_lock_error(stderr));
+    }
+
+    #[test]
+    fn detects_git_add_index_lock_stderr() {
+        let stderr = "fatal: Unable to create '/Users/epic/Desktop/Projects/Deez-Utilities/Deez-Spacesaver-Mac/.git/index.lock': File exists. Another git process seems to be running in this repository, or the lock file may be stale";
         assert!(is_index_lock_error(stderr));
     }
 
@@ -601,6 +811,20 @@ mod index_lock_tests {
     fn ignores_unrelated_pull_stderr() {
         let stderr = "fatal: Not possible to fast-forward, aborting.";
         assert!(!is_index_lock_error(stderr));
+    }
+
+    #[test]
+    fn live_lock_message_is_plain_and_coded() {
+        let msg = live_lock_opsh_message("OPSH-052", LiveLockReason::HolderOpen);
+        assert!(msg.contains("Git is busy"));
+        assert!(msg.contains("OPSH-052"));
+        assert!(!msg.contains("index.lock"));
+        assert!(!msg.contains("/Users/"));
+        assert!(!msg.contains("Unable to create"));
+
+        let msg042 = live_lock_opsh_message("OPSH-042", LiveLockReason::Indeterminate);
+        assert!(msg042.contains("OPSH-042"));
+        assert!(msg042.contains("try again"));
     }
 
     #[test]
@@ -701,6 +925,47 @@ mod index_lock_tests {
     }
 
     #[test]
+    fn git_add_retries_after_clearing_stale_lock() {
+        let root = std::env::temp_dir().join(format!(
+            "opsh052-git-add-lock-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).expect("mkdir root");
+        let init = command("git")
+            .args(["init"])
+            .current_dir(&root)
+            .output()
+            .expect("git init");
+        assert!(init.status.success(), "git init failed");
+        let _ = command("git")
+            .args(["config", "user.email", "test@example.com"])
+            .current_dir(&root)
+            .output();
+        let _ = command("git")
+            .args(["config", "user.name", "Test"])
+            .current_dir(&root)
+            .output();
+        fs::write(root.join("file.txt"), b"hello").expect("write file");
+
+        let lock = root.join(".git").join("index.lock");
+        fs::write(&lock, b"").expect("write lock");
+        let old = SystemTime::now() - Duration::from_secs(60 * 60 * 24 * 30);
+        let file = fs::File::options()
+            .write(true)
+            .open(&lock)
+            .expect("open lock");
+        file.set_modified(old).expect("set mtime");
+        drop(file);
+
+        let result = run_git_with_lock_retry(&root, &["add", "-A"], "OPSH-052", "git add")
+            .expect("git add with lock retry");
+        assert!(result.cleared_stale_lock, "should have cleared stale lock");
+        assert!(!lock.exists(), "lock should be gone after retry");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
     fn verify_repo_stale_lock_then_pull_when_env_set() {
         let Ok(raw) = std::env::var("OPSH042_VERIFY_REPO") else {
             return;
@@ -732,6 +997,46 @@ mod index_lock_tests {
             "unexpected success note: {msg}"
         );
         assert!(!lock.exists(), "lock should be cleared");
+    }
+
+    #[test]
+    fn verify_repo_stale_lock_then_add_when_env_set() {
+        let Ok(raw) = std::env::var("OPSH052_VERIFY_REPO") else {
+            return;
+        };
+        let root = PathBuf::from(raw);
+        let lock = root.join(".git").join("index.lock");
+        assert!(
+            lock.is_file(),
+            "expected stale lock at {}",
+            lock.display()
+        );
+        let before = command("git")
+            .args(["add", "-A"])
+            .current_dir(&root)
+            .output()
+            .expect("git add before");
+        assert!(
+            !before.status.success(),
+            "precondition: git add should fail while lock exists"
+        );
+        assert!(
+            is_index_lock_error(&String::from_utf8_lossy(&before.stderr)),
+            "precondition: stderr should be index.lock"
+        );
+
+        let result = run_git_with_lock_retry(&root, &["add", "-A"], "OPSH-052", "git add")
+            .expect("git add after harden");
+        assert!(
+            result.cleared_stale_lock,
+            "expected cleared_stale_lock on Spacesaver-style lock"
+        );
+        assert!(!lock.exists(), "lock should be cleared");
+        // Leave the worktree as before — unstage only.
+        let _ = command("git")
+            .args(["reset", "HEAD"])
+            .current_dir(&root)
+            .output();
     }
 }
 

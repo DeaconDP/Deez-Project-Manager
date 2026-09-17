@@ -241,12 +241,21 @@ export async function importLocalFolders(
   return tauriInvoke<ImportResult>("import_local_folders", { paths });
 }
 
-export async function refreshGithubStatuses(): Promise<Project[]> {
+export type GitRefreshMode = "local" | "full";
+
+export async function refreshGithubStatuses(
+  mode: GitRefreshMode = "full",
+): Promise<Project[]> {
   if (!isTauri()) {
     const store = await getProjects();
     return store.projects ?? [];
   }
-  return tauriInvoke<Project[]>("refresh_github_statuses");
+  return tauriInvoke<Project[]>("refresh_github_statuses", { mode });
+}
+
+export async function refreshProjectGit(id: string): Promise<GitSyncUpdated> {
+  if (!isTauri()) remoteUnsupported("Refresh project git");
+  return tauriInvoke<GitSyncUpdated>("refresh_project_git", { id });
 }
 
 export async function onGitSyncUpdated(
@@ -438,6 +447,13 @@ export async function updateLocalProject(
 ): Promise<OpenshipActionResult> {
   if (!isTauri()) remoteUnsupported("Update Local");
   return tauriInvoke<OpenshipActionResult>("update_local_project", { path });
+}
+
+export async function publishLocalProject(
+  path: string,
+): Promise<OpenshipActionResult> {
+  if (!isTauri()) remoteUnsupported("Publish Local");
+  return tauriInvoke<OpenshipActionResult>("publish_local_project", { path });
 }
 
 export function isDesktopApp(): boolean {
