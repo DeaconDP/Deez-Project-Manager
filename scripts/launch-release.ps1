@@ -11,6 +11,13 @@ Set-Location $repoRoot
 
 $exe = Join-Path $repoRoot "src-tauri\target\release\deez-project-manager.exe"
 $logPath = Join-Path $env:TEMP "deez-project-manager-launch.log"
+$buildLogPath = Join-Path $env:TEMP "deez-project-manager-tauri-build.log"
+
+function Write-LaunchLog {
+  param([string]$Message)
+  $stamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+  Add-Content -LiteralPath $logPath -Value "[$stamp] $Message"
+}
 
 function Update-Repo {
   if (-not (Test-Path -LiteralPath (Join-Path $repoRoot ".git"))) {
@@ -31,12 +38,6 @@ function Update-Repo {
   }
 }
 
-function Write-LaunchLog {
-  param([string]$Message)
-  $stamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-  Add-Content -LiteralPath $logPath -Value "[$stamp] $Message"
-}
-
 function Initialize-ExplorerPath {
   $pathParts = @(
     [Environment]::GetEnvironmentVariable("Path", "Machine"),
@@ -46,6 +47,93 @@ function Initialize-ExplorerPath {
   $deduped = ($pathParts -join ";").Split(";", [System.StringSplitOptions]::RemoveEmptyEntries) |
     Select-Object -Unique
   $env:Path = [string]::Join(";", $deduped)
+}
+
+function Import-VsDevCmdEnvironment {
+  param([string]$VsDevCmd)
+
+  if (-not (Test-Path -LiteralPath $VsDevCmd)) {
+    return $false
+  }
+
+  Write-LaunchLog "loading MSVC env from $VsDevCmd"
+  $output = & cmd.exe /c "`"$VsDevCmd`" -arch=amd64 -host_arch=amd64 >nul && set"
+  if ($LASTEXITCODE -ne 0 -or -not $output) {
+    Write-LaunchLog "VsDevCmd failed with exit code $LASTEXITCODE"
+    return $false
+  }
+
+  foreach ($line in $output) {
+    if ($line -match '^([^=]+)=(.*)$') {
+      Set-Item -Path "Env:$($matches[1])" -Value $matches[2]
+    }
+  }
+  return $true
+}
+
+function Initialize-MsvcEnv {
+  if (Get-Command link.exe -ErrorAction SilentlyContinue) {
+    Write-LaunchLog "link.exe already on PATH: $((Get-Command link.exe).Source)"
+    return $true
+  }
+
+  $candidates = @()
+
+  $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
+  if (Test-Path -LiteralPath $vswhere) {
+    $installPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath 2>$null
+    if (-not $installPath) {
+      $installPath = & $vswhere -products Microsoft.VisualStudio.Product.BuildTools -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath 2>$null
+    }
+    foreach ($p in @($installPath)) {
+      if ($p) {
+        $candidates += (Join-Path $p "Common7\Tools\VsDevCmd.bat")
+      }
+    }
+  }
+
+  $candidates += @(
+    "C:\BuildTools\Common7\Tools\VsDevCmd.bat",
+    (Join-Path ${env:ProgramFiles} "Microsoft Visual Studio\2022\Community\Common7\Tools\VsDevCmd.bat"),
+    (Join-Path ${env:ProgramFiles} "Microsoft Visual Studio\2022\BuildTools\Common7\Tools\VsDevCmd.bat"),
+    (Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\2022\BuildTools\Common7\Tools\VsDevCmd.bat")
+  )
+
+  foreach ($bat in ($candidates | Select-Object -Unique)) {
+    if (Import-VsDevCmdEnvironment -VsDevCmd $bat) {
+      if (Get-Command link.exe -ErrorAction SilentlyContinue) {
+        Write-LaunchLog "link.exe after VsDevCmd: $((Get-Command link.exe).Source)"
+        return $true
+      }
+    }
+  }
+
+  return $false
+}
+
+function Assert-MsvcReady {
+  Initialize-ExplorerPath
+  if (Initialize-MsvcEnv) {
+    return
+  }
+
+  $msg = @"
+MSVC linker (link.exe) was not found.
+
+Install or repair one of:
+  - Visual Studio 2022: workload "Desktop development with C++"
+  - Build Tools 2022: workload "MSVC v143" + Windows SDK
+
+Then re-run: run.bat --rebuild
+
+Launch log: $logPath
+"@
+  Write-Host $msg
+  Write-LaunchLog "MSVC preflight failed: link.exe not found"
+  Write-Host ""
+  Write-Host "Press Enter to close..."
+  [void][System.Console]::ReadLine()
+  exit 1
 }
 
 function Get-NewestWriteTime {
@@ -97,26 +185,50 @@ function Install-NpmDependencies {
   Require-Command "node" "Node.js is required. Install from https://nodejs.org"
   Write-Host "Installing npm dependencies..."
   Write-LaunchLog "npm install started"
+  # Native tools write Info/warn lines to stderr; don't treat as terminating errors.
+  $prevEap = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
   npm install
-  if ($LASTEXITCODE -ne 0) {
+  $npmExit = $LASTEXITCODE
+  $ErrorActionPreference = $prevEap
+  if ($npmExit -ne 0) {
     Write-Host "npm install failed."
-    Write-LaunchLog "npm install failed with exit code $LASTEXITCODE"
+    Write-LaunchLog "npm install failed with exit code $npmExit"
     exit 1
   }
   Write-LaunchLog "npm install succeeded"
 }
 
 function Build-ReleaseExe {
-  Initialize-ExplorerPath
+  Assert-MsvcReady
   Require-Command "node" "Node.js is required to rebuild. Install from https://nodejs.org"
   Require-Command "cargo" "Rust/Cargo is required to rebuild. Install from https://rustup.rs"
 
   Write-Host "Building Deez Project Manager release EXE..."
+  Write-Host "Build log: $buildLogPath"
   Write-LaunchLog "tauri build started"
-  npm run tauri build
-  if ($LASTEXITCODE -ne 0) {
-    Write-Host "tauri build failed."
-    Write-LaunchLog "tauri build failed with exit code $LASTEXITCODE"
+  if (Test-Path -LiteralPath $buildLogPath) {
+    Remove-Item -LiteralPath $buildLogPath -Force -ErrorAction SilentlyContinue
+  }
+
+  $stamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+  Add-Content -LiteralPath $buildLogPath -Value "[$stamp] npm run tauri build"
+
+  # Capture stdout+stderr without letting PS Stop on native stderr chatter.
+  $prevEap = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  & npm run tauri build *>&1 |
+    ForEach-Object {
+      $line = "$_"
+      Write-Host $line
+      Add-Content -LiteralPath $buildLogPath -Value $line
+    }
+  $buildExit = $LASTEXITCODE
+  $ErrorActionPreference = $prevEap
+
+  if ($buildExit -ne 0) {
+    Write-Host "tauri build failed (exit $buildExit)."
+    Write-LaunchLog "tauri build failed with exit code $buildExit (details: $buildLogPath)"
     return $false
   }
 
@@ -129,6 +241,23 @@ function Build-ReleaseExe {
 
   Write-LaunchLog "tauri build succeeded"
   return $true
+}
+
+function Show-RebuildFailure {
+  param(
+    [string]$Detail
+  )
+  Write-Host ""
+  Write-Host "========================================"
+  Write-Host " Deez Project Manager update FAILED"
+  Write-Host "========================================"
+  Write-Host $Detail
+  Write-Host ""
+  Write-Host "Launch log: $logPath"
+  Write-Host "Build log:  $buildLogPath"
+  Write-Host ""
+  Write-Host "Press Enter to continue..."
+  [void][System.Console]::ReadLine()
 }
 
 function Start-ReleaseExe {
@@ -207,6 +336,10 @@ foreach ($p in $running) {
   Write-LaunchLog "stopping release pid $($p.ProcessId) before rebuild"
   Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue
 }
+if ($running.Count -gt 0) {
+  # Give Windows time to release the EXE lock before link.exe runs.
+  Start-Sleep -Seconds 2
+}
 
 if (-not $exeExists) {
   Write-Host "Release EXE missing - building..."
@@ -220,13 +353,12 @@ if (-not $exeExists) {
 $built = Build-ReleaseExe
 if (-not $built) {
   if (Test-Path -LiteralPath $exe) {
-    Write-Host "Rebuild failed; launching the existing release EXE instead."
-    Write-LaunchLog "rebuild failed; fallback launch"
+    Write-LaunchLog "rebuild failed; fallback launch after pause"
+    Show-RebuildFailure -Detail "Rebuild failed. Launching the existing (possibly outdated) release EXE instead."
     Start-ReleaseExe | Out-Null
     exit 1
   }
-  Write-Host "No release EXE is available to launch."
-  Write-Host "Launch log: $logPath"
+  Show-RebuildFailure -Detail "Rebuild failed and no release EXE is available to launch."
   exit 1
 }
 
