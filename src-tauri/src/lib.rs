@@ -186,15 +186,17 @@ fn run_project(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn list_github_repos(username: Option<String>) -> Result<Vec<GithubRepo>, String> {
+fn list_github_repos(app: AppHandle, username: Option<String>) -> Result<Vec<GithubRepo>, String> {
     let user = username.unwrap_or_else(|| "DeaconDP".to_string());
-    github::list_user_repos(&user)
+    let pat = mesh::read_pat(&app);
+    github::list_user_repos(&user, pat.as_deref())
 }
 
 #[tauri::command]
 fn import_github_repos(app: AppHandle, username: Option<String>) -> Result<ImportResult, String> {
     let user = username.unwrap_or_else(|| "DeaconDP".to_string());
-    let repos = github::list_user_repos(&user)?;
+    let pat = mesh::read_pat(&app);
+    let repos = github::list_user_repos(&user, pat.as_deref())?;
     let mut store = store::load_store(&app)?;
 
     let existing: std::collections::HashSet<String> = store
@@ -212,6 +214,21 @@ fn import_github_repos(app: AppHandle, username: Option<String>) -> Result<Impor
 
     let mut added = 0u32;
     let mut skipped = 0u32;
+    let mut updated = 0u32;
+    let vis = github::visibility_map(&repos);
+
+    // Backfill visibility on rows we already track.
+    for project in store.projects.iter_mut() {
+        let Some(repo) = project.github_repo.as_ref() else {
+            continue;
+        };
+        if let Some(private) = vis.get(repo) {
+            if project.github_private != Some(*private) {
+                project.github_private = Some(*private);
+                updated += 1;
+            }
+        }
+    }
 
     for repo in repos {
         if existing.contains(&repo.full_name) {
@@ -234,6 +251,7 @@ fn import_github_repos(app: AppHandle, username: Option<String>) -> Result<Impor
             unity_version: None,
             github_url: Some(repo.html_url.clone()),
             github_repo: Some(repo.full_name.clone()),
+            github_private: Some(repo.private),
             github_status: GithubStatus::RemoteOnly,
             git_ahead: 0,
             git_behind: 0,
@@ -265,7 +283,7 @@ fn import_github_repos(app: AppHandle, username: Option<String>) -> Result<Impor
     Ok(ImportResult {
         added,
         skipped,
-        updated: 0,
+        updated,
         projects: store.projects,
     })
 }
@@ -576,6 +594,10 @@ fn refresh_github_statuses(
             project_fs::apply_git_sync_info(project, &sync);
         }
     }
+
+    // Backfill GitHub private/public when a PAT is available (or public list otherwise).
+    apply_github_visibility(&app, &mut store);
+
     store::save_store(&app, &store)?;
 
     if with_fetch {
@@ -587,6 +609,30 @@ fn refresh_github_statuses(
     }
 
     Ok(store.projects)
+}
+
+/// Update `github_private` from the GitHub API. On failure, leave known values alone.
+fn apply_github_visibility(app: &AppHandle, store: &mut ProjectStore) {
+    let pat = mesh::read_pat(app);
+    let Ok(repos) = github::list_user_repos("DeaconDP", pat.as_deref()) else {
+        return;
+    };
+    let vis = github::visibility_map(&repos);
+    for project in store.projects.iter_mut() {
+        let Some(repo) = project.github_repo.as_ref() else {
+            continue;
+        };
+        if let Some(private) = vis.get(repo) {
+            project.github_private = Some(*private);
+            continue;
+        }
+        // Not in the owner list (fork / other account) — single probe when PAT present.
+        if pat.is_some() {
+            if let Ok(private) = github::fetch_repo_visibility(repo, pat.as_deref()) {
+                project.github_private = Some(private);
+            }
+        }
+    }
 }
 
 /// Re-probe one project's local git (no fetch). Used after Update Local / Publish.

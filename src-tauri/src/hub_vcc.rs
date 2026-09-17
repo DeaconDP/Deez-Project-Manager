@@ -300,6 +300,7 @@ pub fn make_project_from_discovered(discovered: &DiscoveredProject, sort_index: 
         unity_version: discovered.unity_version.clone(),
         github_url: discovered.github_url.clone(),
         github_repo: discovered.github_repo.clone(),
+        github_private: None,
         github_status: sync.status.clone(),
         git_ahead: 0,
         git_behind: 0,

@@ -41,6 +41,8 @@ export interface Project {
   unityVersion: string | null;
   githubUrl: string | null;
   githubRepo: string | null;
+  /** Last known GitHub visibility. null = unknown (not yet probed). */
+  githubPrivate: boolean | null;
   githubStatus: GithubStatus;
   gitAhead: number;
   gitBehind: number;
@@ -377,6 +379,7 @@ export function createEmptyProject(partial?: Partial<Project>): Project {
     unityVersion: null,
     githubUrl: null,
     githubRepo: null,
+    githubPrivate: null,
     githubStatus: "none",
     gitAhead: 0,
     gitBehind: 0,
@@ -441,6 +444,11 @@ export function githubStatusLabel(
 
 export function githubStatusTooltip(project: Project): string {
   let label = githubStatusLabel(project.githubStatus, project);
+  if (project.githubPrivate === true) {
+    label = `Private · ${label}`;
+  } else if (project.githubPrivate === false) {
+    label = `Public · ${label}`;
+  }
   if (project.gitBranch?.trim()) {
     label = `${label} · ${project.gitBranch.trim()}`;
   }
@@ -448,4 +456,17 @@ export function githubStatusTooltip(project: Project): string {
     label = `${label} (uncommitted changes)`;
   }
   return label;
+}
+
+/** Visibility filter for the projects list (secondary toolbar). */
+export type GithubVisibilityFilter = "all" | "private" | "public" | "unknown";
+
+export function matchesGithubVisibility(
+  project: Pick<Project, "githubPrivate">,
+  filter: GithubVisibilityFilter,
+): boolean {
+  if (filter === "all") return true;
+  if (filter === "private") return project.githubPrivate === true;
+  if (filter === "public") return project.githubPrivate === false;
+  return project.githubPrivate == null;
 }

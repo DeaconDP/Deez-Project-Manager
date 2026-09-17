@@ -12,6 +12,7 @@
 - [x] Add folder, probe, Open / Reveal with action feedback
 - [x] Add multiple project folders (multi-select; path dedupe + GitHub-row link)
 - [x] Import DeaconDP repos + refresh git statuses
+- [x] Private GitHub awareness: `githubPrivate`, PAT import, lock badge, visibility filter
 - [x] Import from Unity Hub + VCC project lists
 - [x] `run.bat` / `run.command`, ROADMAP, README
 - [x] macOS local development: native launch paths, Unity bundle discovery, portable probes, and verified `run.command`
@@ -101,6 +102,7 @@
 - [x] Auto-sync on enable, after local saves, and every ~90s
 - [x] Browser/PWA store fallback so iPhone / Android can join
 - [x] `scripts/serve-mesh.sh` + web manifest for LAN phone install
+- [x] Same PAT (`gist` + `repo`) imports private DeaconDP repos + fills `githubPrivate`
 
 ## Tailscale live node + phone PWA
 

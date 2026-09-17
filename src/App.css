@@ -1792,6 +1792,22 @@ button[aria-busy="true"]:disabled {
   overflow: hidden;
 }
 
+.gh-cell-glance {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.gh-private-lock {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: var(--muted);
+  opacity: 0.9;
+}
+
 .git-glance {
   box-sizing: border-box;
   width: var(--field-icon-size);

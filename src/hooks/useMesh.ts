@@ -81,7 +81,9 @@ export function useMesh(opts?: {
       let cfg = config ?? (await meshGetConfig());
       const pat = await meshGetPat();
       if (!pat?.trim()) {
-        throw new Error("Add a GitHub PAT with gist scope before syncing.");
+        throw new Error(
+          "Add a GitHub PAT with gist + repo scopes before syncing.",
+        );
       }
       const self: MeshPeer = {
         id: cfg.deviceId,
