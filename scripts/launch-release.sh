@@ -13,6 +13,10 @@ export PATH="$HOME/.cargo/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:
 APP="$ROOT/src-tauri/target/release/bundle/macos/Deez Project Manager.app"
 BIN="$ROOT/src-tauri/target/release/deez-project-manager"
 APP_BIN="$APP/Contents/MacOS/deez-project-manager"
+# Login LaunchAgent (--autostart) points here for a fast start. Rebuilds must
+# refresh this copy; otherwise the Dock launcher updates and login keeps the old binary.
+LOGIN_APP="/Applications/Deez Project Manager.app"
+LOGIN_APP_BIN="$LOGIN_APP/Contents/MacOS/deez-project-manager"
 LOG="${TMPDIR:-/tmp}/deez-project-manager-launch.log"
 
 REBUILD=0
@@ -137,7 +141,42 @@ release_pids() {
     if [ -x "$APP_BIN" ]; then
       pgrep -f "$APP_BIN" 2>/dev/null || true
     fi
+    if [ -x "$LOGIN_APP_BIN" ]; then
+      pgrep -f "$LOGIN_APP_BIN" 2>/dev/null || true
+    fi
   } | sort -u | grep -v '^$' || true
+}
+
+# Copy the release .app over the login install so --autostart matches the rebuild.
+sync_login_app() {
+  [ -d "$APP" ] || return 0
+  if [ ! -d "$LOGIN_APP" ]; then
+    log "no login app at $LOGIN_APP; skip sync"
+    return 0
+  fi
+  notify "Updating login app…" 88
+  local staging="${LOGIN_APP}.new"
+  local backup="${LOGIN_APP}.old"
+  rm -rf "$staging" "$backup"
+  if ! ditto "$APP" "$staging"; then
+    rm -rf "$staging"
+    log "login app ditto failed"
+    return 1
+  fi
+  if ! mv "$LOGIN_APP" "$backup"; then
+    rm -rf "$staging"
+    log "login app backup mv failed"
+    return 1
+  fi
+  if ! mv "$staging" "$LOGIN_APP"; then
+    mv "$backup" "$LOGIN_APP" 2>/dev/null || true
+    rm -rf "$staging"
+    log "login app swap mv failed"
+    return 1
+  fi
+  rm -rf "$backup"
+  log "login app synced from release bundle"
+  return 0
 }
 
 require_cmd() {
@@ -243,6 +282,11 @@ build_release() {
   if [ -d "$DOCK_LAUNCHER" ] && [ -x "$ROOT/scripts/install-dock-launcher.sh" ]; then
     bash "$ROOT/scripts/install-dock-launcher.sh" >/dev/null 2>&1 || true
     log "dock launcher app refreshed"
+  fi
+
+  # Refresh /Applications copy used by Login LaunchAgent (--autostart).
+  if ! sync_login_app; then
+    log "login app sync failed (release bundle still ok)"
   fi
 
   return 0
