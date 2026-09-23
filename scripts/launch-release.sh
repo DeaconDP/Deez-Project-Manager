@@ -261,21 +261,30 @@ build_release() {
   notify "Building release app…" 25
   log "tauri build started"
   start_build_progress
-  if ! npm run tauri build; then
-    stop_build_progress
-    notify "Build failed." 25
-    log "tauri build failed"
-    return 1
-  fi
+  local build_rc=0
+  npm run tauri build || build_rc=$?
   stop_build_progress
+
+  # DMG/signing steps can fail after a usable .app is already written. Prefer the
+  # .app for Dock + login sync over treating the whole build as dead.
+  if [ "$build_rc" -ne 0 ]; then
+    if [ -d "$APP" ] && [ -x "$APP_BIN" ]; then
+      notify "Bundle step failed — using .app anyway." 85
+      log "tauri build exited $build_rc but .app present; continuing"
+    else
+      notify "Build failed." 25
+      log "tauri build failed (exit $build_rc) and .app missing"
+      return 1
+    fi
+  else
+    notify "Build complete." 90
+    log "tauri build succeeded"
+  fi
 
   if [ ! -d "$APP" ] && [ ! -x "$BIN" ]; then
     log "build finished but app missing: $APP"
     return 1
   fi
-
-  notify "Build complete." 90
-  log "tauri build succeeded"
 
   # Refresh Dock-friendly ~/Applications launcher when already installed.
   DOCK_LAUNCHER="$HOME/Applications/Deez Project Manager.app"
