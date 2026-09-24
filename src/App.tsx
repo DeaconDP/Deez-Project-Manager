@@ -28,6 +28,12 @@ import { AppChrome } from "./components/AppChrome";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { ImportMenu, type ImportKind } from "./components/ImportMenu";
 import { ListViewMenu } from "./components/ListViewMenu";
+import {
+  EMPTY_GIT_PROBE_CLOCK,
+  dueGitProbe,
+  markGitProbe,
+  type GitProbeMode,
+} from "./lib/gitProbeSchedule";
 import { VisibilityFilterMenu } from "./components/VisibilityFilterMenu";
 import { ProjectEditModal } from "./components/ProjectEditModal";
 import { ProjectsSkeleton } from "./components/ProjectsSkeleton";
@@ -335,8 +341,30 @@ function App() {
     };
   }, [applyGitSyncUpdate]);
 
-  const lastLocalGitProbeAtRef = useRef(0);
+  const gitProbeClockRef = useRef(EMPTY_GIT_PROBE_CLOCK);
+  const gitProbeInFlightRef = useRef(false);
   const openGitFetchStartedRef = useRef(false);
+
+  const runSilentGitProbe = useCallback(
+    async (mode: GitProbeMode) => {
+      if (gitProbeInFlightRef.current) return;
+      gitProbeInFlightRef.current = true;
+      try {
+        const next = await refreshGithubStatuses(mode);
+        gitProbeClockRef.current = markGitProbe(
+          gitProbeClockRef.current,
+          mode,
+          Date.now(),
+        );
+        applyGitRefreshSnapshot(next);
+      } catch {
+        // Non-fatal — manual Refresh still available.
+      } finally {
+        gitProbeInFlightRef.current = false;
+      }
+    },
+    [applyGitRefreshSnapshot],
+  );
 
   // Silent full probe on first load (local + one background fetch wave).
   useEffect(() => {
@@ -344,44 +372,37 @@ function App() {
     openGitFetchStartedRef.current = true;
     let cancelled = false;
     void (async () => {
-      try {
-        const next = await refreshGithubStatuses("full");
-        if (cancelled) return;
-        lastLocalGitProbeAtRef.current = Date.now();
-        applyGitRefreshSnapshot(next);
-      } catch {
-        // Non-fatal — manual Refresh still available.
-      }
+      await runSilentGitProbe("full");
+      if (cancelled) return;
     })();
     return () => {
       cancelled = true;
     };
-  }, [desktop, loading, applyGitRefreshSnapshot]);
+  }, [desktop, loading, runSilentGitProbe]);
 
-  // Cheap local re-probe when the window becomes visible again (debounced).
+  // Keep indicators fresh while visible: local ~60s, full (fetch) ~10m.
   useEffect(() => {
     if (!desktop) return;
-    const LOCAL_DEBOUNCE_MS = 30_000;
 
-    function onVisibility() {
+    function maybeProbe() {
       if (document.visibilityState !== "visible") return;
-      if (Date.now() - lastLocalGitProbeAtRef.current < LOCAL_DEBOUNCE_MS) {
-        return;
-      }
-      void (async () => {
-        try {
-          const next = await refreshGithubStatuses("local");
-          lastLocalGitProbeAtRef.current = Date.now();
-          applyGitRefreshSnapshot(next);
-        } catch {
-          // Non-fatal.
-        }
-      })();
+      const mode = dueGitProbe(Date.now(), gitProbeClockRef.current);
+      if (!mode) return;
+      void runSilentGitProbe(mode);
     }
 
+    function onVisibility() {
+      maybeProbe();
+    }
+
+    // Tick often enough to catch the 60s local cadence without drift pile-up.
+    const tick = window.setInterval(maybeProbe, 15_000);
     document.addEventListener("visibilitychange", onVisibility);
-    return () => document.removeEventListener("visibilitychange", onVisibility);
-  }, [desktop, applyGitRefreshSnapshot]);
+    return () => {
+      window.clearInterval(tick);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [desktop, runSilentGitProbe]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -531,7 +552,11 @@ function App() {
       "refresh",
       async () => {
         const next = await refreshGithubStatuses("full");
-        lastLocalGitProbeAtRef.current = Date.now();
+        gitProbeClockRef.current = markGitProbe(
+          gitProbeClockRef.current,
+          "full",
+          Date.now(),
+        );
         replaceAll(next);
       },
       { loading: "Refreshing projects…", success: "Projects updated" },
