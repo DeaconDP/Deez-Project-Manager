@@ -40,7 +40,7 @@ impl NetProcessCollector {
     }
 }
 
-/// Native `GetExtendedTcpTable`. Avoids a PowerShell console child.
+/// Established TCP owners via `GetExtendedTcpTable`.
 #[cfg(windows)]
 fn tcp_connection_counts() -> Option<HashMap<u32, u32>> {
     use windows::Win32::NetworkManagement::IpHelper::MIB_TCP_STATE_ESTAB;

@@ -1,9 +1,9 @@
 use std::process::Command;
 
-/// On Windows GUI apps, console child processes flash a terminal unless
-/// CREATE_NO_WINDOW is set. Use this for every quiet console tool (`git`,
-/// `powershell`, `netsh`, …). Leave intentional UI launches (`explorer`,
-/// `cmd /C start` for `run.bat`) on plain `Command::new`.
+/// Build a `Command` with Windows `CREATE_NO_WINDOW` so quiet console tools
+/// (`git`, `powershell`, …) do not flash a terminal under a GUI parent.
+/// Intentional UI launches (`explorer`, `cmd /C start` for `run.bat`) stay on
+/// plain `Command::new`.
 pub fn command(program: &str) -> Command {
     #[cfg(windows)]
     {
@@ -21,19 +21,17 @@ pub fn command(program: &str) -> Command {
 
 #[cfg(test)]
 mod tests {
-    /// Quiet git must never use raw `Command::new("git")` on Windows GUI
-    /// parents — each spawn flashes a console. Route through `win_cmd::command`.
     #[test]
     fn quiet_git_callers_use_win_cmd() {
         let project_fs = include_str!("project_fs.rs");
         let launch_gate = include_str!("launch_gate.rs");
         assert!(
             !project_fs.contains("Command::new(\"git\")"),
-            "project_fs must spawn git via win_cmd::command (CREATE_NO_WINDOW)"
+            "project_fs must spawn git via win_cmd::command"
         );
         assert!(
             !launch_gate.contains("Command::new(\"git\")"),
-            "launch_gate must spawn git via win_cmd::command (CREATE_NO_WINDOW)"
+            "launch_gate must spawn git via win_cmd::command"
         );
         assert!(
             project_fs.contains("win_cmd::command(\"git\")"),
