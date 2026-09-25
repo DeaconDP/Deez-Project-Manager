@@ -1,7 +1,7 @@
+use crate::win_cmd::command;
 use serde::Serialize;
 use serde_json::Value;
 use std::net::Ipv4Addr;
-use std::process::Command;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -39,7 +39,7 @@ fn parse_ipv4(s: &str) -> Option<String> {
 }
 
 fn run_tailscale(args: &[&str]) -> Option<String> {
-    let output = Command::new("tailscale").args(args).output().ok()?;
+    let output = command("tailscale").args(args).output().ok()?;
     if !output.status.success() {
         return None;
     }
@@ -86,7 +86,7 @@ fn from_status_json(raw: &str) -> TailscaleInfo {
 fn ipv4_from_interfaces() -> Option<String> {
     #[cfg(target_os = "linux")]
     {
-        let output = Command::new("ip")
+        let output = command("ip")
             .args(["-4", "-o", "addr", "show"])
             .output()
             .ok()?;
@@ -101,7 +101,7 @@ fn ipv4_from_interfaces() -> Option<String> {
     }
     #[cfg(target_os = "macos")]
     {
-        let output = Command::new("ifconfig").output().ok()?;
+        let output = command("ifconfig").output().ok()?;
         let text = String::from_utf8_lossy(&output.stdout);
         for line in text.lines() {
             let line = line.trim();
@@ -114,9 +114,12 @@ fn ipv4_from_interfaces() -> Option<String> {
     }
     #[cfg(target_os = "windows")]
     {
-        let output = Command::new("powershell")
+        let output = command("powershell")
             .args([
                 "-NoProfile",
+                "-NonInteractive",
+                "-WindowStyle",
+                "Hidden",
                 "-Command",
                 "Get-NetIPAddress -AddressFamily IPv4 | Select-Object -ExpandProperty IPAddress",
             ])

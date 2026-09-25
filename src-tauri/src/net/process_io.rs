@@ -40,35 +40,16 @@ impl NetProcessCollector {
     }
 }
 
+/// Native `GetExtendedTcpTable`. Avoids a PowerShell console child.
 #[cfg(windows)]
 fn tcp_connection_counts() -> Option<HashMap<u32, u32>> {
-    let script = r#"
-Get-NetTCPConnection -State Established -ErrorAction SilentlyContinue |
-  Group-Object OwningProcess |
-  ForEach-Object { "{0}={1}" -f $_.Name, $_.Count }
-"#;
-    let output = crate::win_cmd::command("powershell")
-        .args([
-            "-NoProfile",
-            "-NonInteractive",
-            "-WindowStyle",
-            "Hidden",
-            "-Command",
-            script,
-        ])
-        .output()
-        .ok()?;
-    if !output.status.success() {
-        return None;
-    }
+    use windows::Win32::NetworkManagement::IpHelper::MIB_TCP_STATE_ESTAB;
+    use windows::Win32::Networking::WinSock::{AF_INET, AF_INET6};
+
+    let estab = MIB_TCP_STATE_ESTAB.0 as u32;
     let mut map = HashMap::new();
-    for line in String::from_utf8_lossy(&output.stdout).lines() {
-        if let Some((pid, count)) = line.trim().split_once('=') {
-            if let (Ok(p), Ok(c)) = (pid.parse::<u32>(), count.parse::<u32>()) {
-                map.insert(p, c);
-            }
-        }
-    }
+    fill_ipv4_tcp_owners(&mut map, estab, AF_INET.0 as u32)?;
+    let _ = fill_ipv6_tcp_owners(&mut map, estab, AF_INET6.0 as u32);
     if map.is_empty() {
         None
     } else {
@@ -76,7 +57,115 @@ Get-NetTCPConnection -State Established -ErrorAction SilentlyContinue |
     }
 }
 
+#[cfg(windows)]
+fn fill_ipv4_tcp_owners(map: &mut HashMap<u32, u32>, estab: u32, family: u32) -> Option<()> {
+    use windows::Win32::Foundation::ERROR_INSUFFICIENT_BUFFER;
+    use windows::Win32::NetworkManagement::IpHelper::{
+        GetExtendedTcpTable, MIB_TCPROW_OWNER_PID, MIB_TCPTABLE_OWNER_PID,
+        TCP_TABLE_OWNER_PID_CONNECTIONS,
+    };
+
+    unsafe {
+        let mut size: u32 = 0;
+        let probe = GetExtendedTcpTable(
+            None,
+            &mut size,
+            false,
+            family,
+            TCP_TABLE_OWNER_PID_CONNECTIONS,
+            0,
+        );
+        if probe != ERROR_INSUFFICIENT_BUFFER.0 || size == 0 {
+            return None;
+        }
+        let mut buf = vec![0u8; size as usize];
+        if GetExtendedTcpTable(
+            Some(buf.as_mut_ptr().cast()),
+            &mut size,
+            false,
+            family,
+            TCP_TABLE_OWNER_PID_CONNECTIONS,
+            0,
+        ) != 0
+        {
+            return None;
+        }
+        let table = &*(buf.as_ptr() as *const MIB_TCPTABLE_OWNER_PID);
+        let rows = std::slice::from_raw_parts(
+            table.table.as_ptr() as *const MIB_TCPROW_OWNER_PID,
+            table.dwNumEntries as usize,
+        );
+        for row in rows {
+            if row.dwState == estab && row.dwOwningPid != 0 {
+                *map.entry(row.dwOwningPid).or_insert(0) += 1;
+            }
+        }
+    }
+    Some(())
+}
+
+#[cfg(windows)]
+fn fill_ipv6_tcp_owners(map: &mut HashMap<u32, u32>, estab: u32, family: u32) -> Option<()> {
+    use windows::Win32::Foundation::ERROR_INSUFFICIENT_BUFFER;
+    use windows::Win32::NetworkManagement::IpHelper::{
+        GetExtendedTcpTable, MIB_TCP6ROW_OWNER_PID, MIB_TCP6TABLE_OWNER_PID,
+        TCP_TABLE_OWNER_PID_CONNECTIONS,
+    };
+
+    unsafe {
+        let mut size: u32 = 0;
+        let probe = GetExtendedTcpTable(
+            None,
+            &mut size,
+            false,
+            family,
+            TCP_TABLE_OWNER_PID_CONNECTIONS,
+            0,
+        );
+        if probe != ERROR_INSUFFICIENT_BUFFER.0 || size == 0 {
+            return None;
+        }
+        let mut buf = vec![0u8; size as usize];
+        if GetExtendedTcpTable(
+            Some(buf.as_mut_ptr().cast()),
+            &mut size,
+            false,
+            family,
+            TCP_TABLE_OWNER_PID_CONNECTIONS,
+            0,
+        ) != 0
+        {
+            return None;
+        }
+        let table = &*(buf.as_ptr() as *const MIB_TCP6TABLE_OWNER_PID);
+        let rows = std::slice::from_raw_parts(
+            table.table.as_ptr() as *const MIB_TCP6ROW_OWNER_PID,
+            table.dwNumEntries as usize,
+        );
+        for row in rows {
+            if row.dwState == estab && row.dwOwningPid != 0 {
+                *map.entry(row.dwOwningPid).or_insert(0) += 1;
+            }
+        }
+    }
+    Some(())
+}
+
 #[cfg(not(windows))]
 fn tcp_connection_counts() -> Option<HashMap<u32, u32>> {
     None
+}
+
+#[cfg(all(test, windows))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tcp_counts_without_powershell() {
+        let counts = tcp_connection_counts().expect("GetExtendedTcpTable should work");
+        assert!(
+            counts.values().any(|c| *c > 0),
+            "expected at least one established TCP owner"
+        );
+    }
 }
