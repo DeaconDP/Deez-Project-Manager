@@ -46,6 +46,7 @@ import {
   MetricsGlanceSlot,
   MetricsLiveSlot,
 } from "./monitor/components/MetricsChrome";
+import { selectStartupRunTargets } from "./lib/startupRuns";
 import type { GithubVisibilityFilter, Project, ProjectStore } from "./types";
 import {
   matchesGithubVisibility,
@@ -157,6 +158,7 @@ function App() {
     removeByIds,
     reorder,
     toggleFavorite,
+    toggleRunOnStartup,
     setPriority,
     setCategory,
     setStatus,
@@ -357,6 +359,32 @@ function App() {
       cancelled = true;
     };
   }, [desktop, loading, applyGitRefreshSnapshot]);
+
+  const startupRunsStartedRef = useRef(false);
+
+  // One-shot per session: launch rows flagged runOnStartup after the store loads.
+  useEffect(() => {
+    if (!desktop || loading || startupRunsStartedRef.current) return;
+    startupRunsStartedRef.current = true;
+    const targets = selectStartupRunTargets(projectsRef.current);
+    if (targets.length === 0) return;
+    let cancelled = false;
+    void (async () => {
+      for (const project of targets) {
+        if (cancelled) return;
+        const path = project.localPath?.trim();
+        if (!path) continue;
+        try {
+          await runProject(path);
+        } catch {
+          // Keep launching remaining startup targets.
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [desktop, loading]);
 
   // Cheap local re-probe when the window becomes visible again (debounced).
   useEffect(() => {
@@ -1339,6 +1367,7 @@ function App() {
                     addDisabled={toolbar.busy}
                     onReorder={reorder}
                     onToggleFavorite={toggleFavorite}
+                    onToggleRunOnStartup={toggleRunOnStartup}
                     onPriorityChange={setPriority}
                     onCategoryChange={setCategory}
                     onStatusChange={setStatus}

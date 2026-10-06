@@ -59,6 +59,7 @@ function stripLocalProject(p: Project): Project {
     gitBranch: null,
     gitDirty: false,
     hasRunScript: false,
+    runOnStartup: false,
     lastBuildAt: null,
     stickyPort: null,
     launchCmd: null,
@@ -118,7 +119,8 @@ function restoreLocalPath(winner: Project, local?: Project): Project {
     winner.localPath === local.localPath &&
     winner.host === host &&
     winner.stickyPort === local.stickyPort &&
-    winner.launchCmd === local.launchCmd
+    winner.launchCmd === local.launchCmd &&
+    winner.runOnStartup === local.runOnStartup
   ) {
     return winner;
   }
@@ -132,6 +134,7 @@ function restoreLocalPath(winner: Project, local?: Project): Project {
     gitBranch: local.gitBranch,
     gitDirty: local.gitDirty,
     hasRunScript: local.hasRunScript,
+    runOnStartup: local.runOnStartup,
     githubStatus: local.githubStatus,
     lastBuildAt: local.lastBuildAt ?? winner.lastBuildAt,
     stickyPort: local.stickyPort ?? null,

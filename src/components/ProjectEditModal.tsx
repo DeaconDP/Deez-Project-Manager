@@ -313,6 +313,21 @@ export function ProjectEditModal({ project, open, onClose, onSave }: Props) {
                 checked={draft.githubPrivate === true}
                 onChange={(next) => update("githubPrivate", next)}
               />
+              <Toggle
+                id="project-run-on-startup"
+                label="Run on startup"
+                description={
+                  draft.localPath?.trim() && draft.hasRunScript
+                    ? "Launch run.bat / run.command once when Deez finishes loading on this machine."
+                    : "Needs a local path and run.bat / run.command."
+                }
+                checked={draft.runOnStartup}
+                disabled={
+                  !(draft.localPath?.trim() && draft.hasRunScript) &&
+                  !draft.runOnStartup
+                }
+                onChange={(next) => update("runOnStartup", next)}
+              />
             </fieldset>
 
             <fieldset className="form-section">

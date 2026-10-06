@@ -262,6 +262,7 @@ fn import_github_repos(app: AppHandle, username: Option<String>) -> Result<Impor
             notes: repo.description.unwrap_or_default(),
             tools: Vec::new(),
             has_run_script: false,
+            run_on_startup: false,
             agency: None,
             client: None,
             year: None,

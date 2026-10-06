@@ -30,6 +30,7 @@ function normalizeProject(p: Project): Project {
     archived: p.archived ?? false,
     tools: p.tools ?? [],
     hasRunScript: p.hasRunScript ?? false,
+    runOnStartup: p.runOnStartup ?? false,
     gitAhead: p.gitAhead ?? 0,
     gitBehind: p.gitBehind ?? 0,
     gitBranch: p.gitBranch ?? null,
@@ -334,6 +335,23 @@ export function useProjects() {
     [persist],
   );
 
+  const toggleRunOnStartup = useCallback(
+    (id: string) => {
+      const next = latestRef.current.map((p) => {
+        if (p.id !== id) return p;
+        const canRun = !!p.localPath?.trim() && p.hasRunScript;
+        if (!canRun && !p.runOnStartup) return p;
+        return {
+          ...p,
+          runOnStartup: !p.runOnStartup,
+          updatedAt: new Date().toISOString(),
+        };
+      });
+      persist(next);
+    },
+    [persist],
+  );
+
   const setPriority = useCallback(
     (id: string, priority: Priority) => {
       const next = latestRef.current.map((p) =>
@@ -465,6 +483,7 @@ export function useProjects() {
     removeByIds,
     reorder,
     toggleFavorite,
+    toggleRunOnStartup,
     setPriority,
     setCategory,
     setStatus,

@@ -53,6 +53,11 @@ export interface Project {
   notes: string;
   tools: string[];
   hasRunScript: boolean;
+  /**
+   * Host-local: when Deez finishes loading, run `run.bat` / `run.command` once.
+   * Only meaningful with a local path and a run script.
+   */
+  runOnStartup: boolean;
   agency?: string;
   client?: string;
   year?: number;
@@ -390,6 +395,7 @@ export function createEmptyProject(partial?: Partial<Project>): Project {
     notes: "",
     tools: [],
     hasRunScript: false,
+    runOnStartup: false,
     siteId: null,
     openshipProjectId: null,
     previewUrl: null,

@@ -45,7 +45,7 @@ test("mesh: local newer wins; remote-only rows survive", () => {
   assert.deepEqual(byId, { a: "local-a", b: "remote-b", c: "remote-c" });
 });
 
-test("mesh: toMeshDocument strips localPath/stickyPort/launchCmd", () => {
+test("mesh: toMeshDocument strips localPath/stickyPort/launchCmd/runOnStartup", () => {
   const self: MeshPeer = {
     id: "dev-1",
     name: "deez-verify",
@@ -58,6 +58,7 @@ test("mesh: toMeshDocument strips localPath/stickyPort/launchCmd", () => {
     localPath: "/tmp/deez-fixture",
     stickyPort: 3000,
     launchCmd: "npm start",
+    runOnStartup: true,
     githubUrl: "https://github.com/ex/repo",
     githubRepo: "ex/repo",
   });
@@ -65,6 +66,7 @@ test("mesh: toMeshDocument strips localPath/stickyPort/launchCmd", () => {
   assert.equal(doc.projects[0]?.localPath, null);
   assert.equal(doc.projects[0]?.stickyPort, null);
   assert.equal(doc.projects[0]?.launchCmd, null);
+  assert.equal(doc.projects[0]?.runOnStartup, false);
   assert.equal(doc.projects[0]?.githubStatus, "remote-only");
   assert.deepEqual(
     doc.peers.map((p) => p.id),

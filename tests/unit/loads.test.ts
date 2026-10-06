@@ -17,7 +17,7 @@ test("loads: every src/lib/*.ts + src/types.ts imports under node", async () => 
     const mod = await import(pathToFileURL(file).href);
     assert.equal(typeof mod, "object");
     assert.notEqual(mod, null);
-    loaded.push(relative(REPO_ROOT, file));
+    loaded.push(relative(REPO_ROOT, file).replaceAll("\\", "/"));
   }
   assert.deepEqual(loaded.sort(), [
     "src/lib/gitGlance.ts",
@@ -25,6 +25,7 @@ test("loads: every src/lib/*.ts + src/types.ts imports under node", async () => 
     "src/lib/kanban.ts",
     "src/lib/mesh.ts",
     "src/lib/runtime.ts",
+    "src/lib/startupRuns.ts",
     "src/types.ts",
   ]);
 });

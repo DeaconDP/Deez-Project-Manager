@@ -12,12 +12,19 @@ function record(id: string, status: CheckResult["status"], summary: string) {
 
 function runScript(script: string, extraEnv: NodeJS.ProcessEnv = {}): Promise<number> {
   return new Promise((resolve) => {
-    const child = spawn("npm", script === "test" ? ["test"] : ["run", script], {
+    const args = script === "test" ? ["test"] : ["run", script];
+    const win = process.platform === "win32";
+    const child = spawn(win ? "npm.cmd" : "npm", args, {
       stdio: "inherit",
+      shell: win,
       env: { ...process.env, ...extraEnv },
+      windowsHide: true,
     });
     child.on("exit", (code) => resolve(code ?? 1));
-    child.on("error", () => resolve(1));
+    child.on("error", (err) => {
+      console.error(`FAIL npm ${args.join(" ")}:`, err.message);
+      resolve(1);
+    });
   });
 }
 

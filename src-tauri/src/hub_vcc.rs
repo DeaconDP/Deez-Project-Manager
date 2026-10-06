@@ -311,6 +311,7 @@ pub fn make_project_from_discovered(discovered: &DiscoveredProject, sort_index: 
         notes: String::new(),
         tools: discovered.tools.clone(),
         has_run_script: discovered.has_run_script,
+        run_on_startup: false,
         agency: None,
         client: None,
         year: None,

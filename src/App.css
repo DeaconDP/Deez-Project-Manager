@@ -1197,7 +1197,7 @@ button[aria-busy="true"]:disabled {
  */
 .projects-table {
   --col-drag: 3.75rem;
-  --col-fav: 32px;
+  --col-fav: 56px;
   --col-platform: 5.5rem;
   --col-priority: 5.25rem;
   --col-status: 6rem;
@@ -1521,7 +1521,14 @@ button[aria-busy="true"]:disabled {
   letter-spacing: 0.02em;
 }
 
-.star-btn {
+.fav-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+}
+
+.star-btn,
+.boot-btn {
   display: inline-grid;
   place-items: center;
   width: 28px;
@@ -1541,6 +1548,31 @@ button[aria-busy="true"]:disabled {
 
 .star-btn.is-on {
   color: #ffc857;
+}
+
+.boot-btn:hover:not(:disabled) {
+  color: var(--accent);
+}
+
+.boot-btn.is-on {
+  color: var(--accent);
+}
+
+.boot-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.app-shell[data-layout="phone"] .fav-cell {
+  flex-direction: column;
+  align-items: center;
+}
+
+.app-shell[data-layout="phone"] .star-btn,
+.app-shell[data-layout="phone"] .boot-btn {
+  width: 24px;
+  height: 22px;
+  font-size: 0.85rem;
 }
 
 .name-cell {
@@ -2946,7 +2978,7 @@ button.git-glance:disabled {
 
 .app-shell[data-layout="phone"] .projects-table {
   --col-drag: 3.5rem;
-  --col-fav: var(--field-icon-size);
+  --col-fav: 52px;
   /* Icon + cell padding-inline (2px×2) */
   --col-icon-track: calc(var(--field-icon-size) + 4px);
   --col-platform: var(--col-icon-track);
