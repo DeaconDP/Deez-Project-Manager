@@ -50,7 +50,7 @@ If you still open the release EXE directly (or pin it), it self-handoffs to `run
 
 `./run.command --shortcut` creates a Desktop `.command` alias and installs `~/Applications/Deez Project Manager.app` (smart launcher + product icon).
 
-**Pin `~/Applications/Deez Project Manager.app` to the Dock** — not the release bundle under `src-tauri/target`. If the release `.app` is opened directly, it self-handoffs to `run.command` when an update is ready (same rules as Windows). Login LaunchAgent / `--autostart` skips the check for a fast start.
+**Pin `~/Applications/Deez Project Manager.app` to the Dock** — not the release bundle under `src-tauri/target`. If the release `.app` is opened directly, it self-handoffs to `run.command` when an update is ready (same rules as Windows). Login LaunchAgent / `--autostart` skips the check for a fast start, but each rebuild also refreshes `/Applications/Deez Project Manager.app` so login stays on the same binary as the Dock launcher.
 
 Force a rebuild: `run.bat --rebuild` / `./run.command --rebuild`.
 
