@@ -200,7 +200,7 @@ pub fn read_unity_version(root: &Path) -> Option<String> {
 }
 
 pub fn git_remote_url(root: &Path) -> Option<String> {
-    let output = Command::new("git")
+    let output = crate::win_cmd::command("git")
         .args(["-C", &root.to_string_lossy(), "remote", "get-url", "origin"])
         .output()
         .ok()?;
@@ -238,7 +238,7 @@ const GIT_FETCH_STAGGER_MS: u64 = 180;
 /// Quiet `git fetch` with a hard timeout. Failures are non-fatal (caller still
 /// probes local status vs last-known upstream).
 pub fn git_fetch_quiet(path: &str) -> bool {
-    let mut child = match Command::new("git")
+    let mut child = match crate::win_cmd::command("git")
         .args(["-C", path, "fetch", "--quiet", "--no-tags"])
         .env("GIT_TERMINAL_PROMPT", "0")
         .stdin(Stdio::null())
@@ -284,7 +284,7 @@ pub fn get_git_sync_info(path: &str, fetch: bool) -> GitSyncInfo {
         return GitSyncInfo::remote_only();
     }
     if !root.join(".git").exists() {
-        let ok = Command::new("git")
+        let ok = crate::win_cmd::command("git")
             .args(["-C", path, "rev-parse", "--is-inside-work-tree"])
             .output()
             .ok()
@@ -299,7 +299,7 @@ pub fn get_git_sync_info(path: &str, fetch: bool) -> GitSyncInfo {
         let _ = git_fetch_quiet(path);
     }
 
-    let porcelain = Command::new("git")
+    let porcelain = crate::win_cmd::command("git")
         .args(["-C", path, "status", "--porcelain"])
         .output();
 
@@ -311,7 +311,7 @@ pub fn get_git_sync_info(path: &str, fetch: bool) -> GitSyncInfo {
     }
     let dirty = !String::from_utf8_lossy(&porcelain.stdout).trim().is_empty();
 
-    let ahead_behind = Command::new("git")
+    let ahead_behind = crate::win_cmd::command("git")
         .args([
             "-C",
             path,
@@ -338,7 +338,7 @@ pub fn get_git_sync_info(path: &str, fetch: bool) -> GitSyncInfo {
         _ => (0, 0),
     };
 
-    let branch = Command::new("git")
+    let branch = crate::win_cmd::command("git")
         .args(["-C", path, "rev-parse", "--abbrev-ref", "HEAD"])
         .output()
         .ok()

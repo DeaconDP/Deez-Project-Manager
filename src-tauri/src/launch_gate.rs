@@ -149,7 +149,7 @@ fn git_behind_upstream(repo_root: &Path) -> bool {
 }
 
 fn run_git(repo_root: &Path, args: &[&str], timeout: Duration) -> Result<Vec<u8>, ()> {
-    let mut child = Command::new("git")
+    let mut child = crate::win_cmd::command("git")
         .args(args)
         .current_dir(repo_root)
         .stdout(Stdio::piped())
