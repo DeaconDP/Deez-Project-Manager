@@ -20,6 +20,7 @@
 
 ## Next (post-v1 polish)
 
+- [x] Per-project Run on startup toggle (host-local; one-shot after Deez loads)
 - [x] Windows: quiet consoles — git via CREATE_NO_WINDOW, native GetExtendedTcpTable (no PS), skip ACPI PS temps
 - [x] Color-code rows + priority badges (Default → Crit)
 - [x] Soft-archive trash icon + Active/Archive filter with restore
