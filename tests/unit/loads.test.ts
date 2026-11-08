@@ -21,6 +21,7 @@ test("loads: every src/lib/*.ts + src/types.ts imports under node", async () => 
   }
   assert.deepEqual(loaded.sort(), [
     "src/lib/gitGlance.ts",
+    "src/lib/gitProbeSchedule.ts",
     "src/lib/gitUpdate.ts",
     "src/lib/kanban.ts",
     "src/lib/mesh.ts",
