@@ -345,6 +345,7 @@ interface RowProps {
   index?: number;
   iconOnly?: boolean;
   onToggleFavorite: (id: string) => void;
+  onToggleRunOnStartup: (id: string) => void;
   onPriorityChange: (id: string, priority: Priority) => void;
   onStatusChange: (id: string, status: Status) => void;
   onCategoryChange: (id: string, category: Category) => void;
@@ -709,6 +710,7 @@ function ProjectActions({
 }: Omit<
   RowProps,
   | "onToggleFavorite"
+  | "onToggleRunOnStartup"
   | "onPriorityChange"
   | "onStatusChange"
   | "onCategoryChange"
@@ -1075,6 +1077,7 @@ function InteractiveRowCells({
   isDragging,
   dragHandleProps,
   onToggleFavorite,
+  onToggleRunOnStartup,
   onPriorityChange,
   onStatusChange,
   onCategoryChange,
@@ -1089,6 +1092,7 @@ function InteractiveRowCells({
   isDragging: boolean;
   dragHandleProps: Record<string, unknown>;
   onToggleFavorite: (id: string) => void;
+  onToggleRunOnStartup: (id: string) => void;
   onPriorityChange: (id: string, priority: Priority) => void;
   onStatusChange: (id: string, status: Status) => void;
   onCategoryChange: (id: string, category: Category) => void;
@@ -1099,6 +1103,10 @@ function InteractiveRowCells({
   actions: ReactNode;
   iconOnly?: boolean;
 }) {
+  const canStartupRun =
+    !!project.localPath?.trim() && project.hasRunScript;
+  const startupDisabled = !canStartupRun && !project.runOnStartup;
+
   return (
     <ProjectDataCells
       project={project}
@@ -1124,15 +1132,38 @@ function InteractiveRowCells({
         </button>
       }
       fav={
-        <button
-          type="button"
-          className={`star-btn${project.favorite ? " is-on" : ""}`}
-          aria-label={project.favorite ? "Unfavorite" : "Favorite"}
-          aria-pressed={project.favorite}
-          onClick={() => onToggleFavorite(project.id)}
-        >
-          ★
-        </button>
+        <div className="fav-cell">
+          <button
+            type="button"
+            className={`star-btn${project.favorite ? " is-on" : ""}`}
+            aria-label={project.favorite ? "Unfavorite" : "Favorite"}
+            aria-pressed={project.favorite}
+            onClick={() => onToggleFavorite(project.id)}
+          >
+            ★
+          </button>
+          <button
+            type="button"
+            className={`boot-btn${project.runOnStartup ? " is-on" : ""}`}
+            aria-label={
+              project.runOnStartup
+                ? "Disable run on startup"
+                : "Run on startup"
+            }
+            aria-pressed={project.runOnStartup}
+            disabled={startupDisabled}
+            title={
+              startupDisabled
+                ? "Needs a local path and run.bat / run.command"
+                : project.runOnStartup
+                  ? "Runs when Deez starts"
+                  : "Run when Deez starts"
+            }
+            onClick={() => onToggleRunOnStartup(project.id)}
+          >
+            ⏻
+          </button>
+        </div>
       }
       priority={
         <PrioritySelect
@@ -1188,12 +1219,18 @@ function OverlayRowCells({
         </span>
       }
       fav={
-        <span
-          className={`star-btn${project.favorite ? " is-on" : ""}`}
-          aria-hidden="true"
-        >
-          ★
-        </span>
+        <div className="fav-cell" aria-hidden="true">
+          <span
+            className={`star-btn${project.favorite ? " is-on" : ""}`}
+          >
+            ★
+          </span>
+          <span
+            className={`boot-btn${project.runOnStartup ? " is-on" : ""}`}
+          >
+            ⏻
+          </span>
+        </div>
       }
       priority={
         iconOnly ? (
@@ -1299,6 +1336,7 @@ const ProjectRow = memo(function ProjectRow({
   setNodeRef,
   style,
   onToggleFavorite,
+  onToggleRunOnStartup,
   onPriorityChange,
   onStatusChange,
   onCategoryChange,
@@ -1349,6 +1387,7 @@ const ProjectRow = memo(function ProjectRow({
         gitUpdateJob={gitUpdateJob}
         onGitAction={onGitAction}
         onToggleFavorite={onToggleFavorite}
+        onToggleRunOnStartup={onToggleRunOnStartup}
         onPriorityChange={onPriorityChange}
         onStatusChange={onStatusChange}
         onCategoryChange={onCategoryChange}
@@ -1493,6 +1532,7 @@ interface TableProps {
   addDisabled?: boolean;
   onReorder: (visibleIds: string[], activeId: string, overId: string) => void;
   onToggleFavorite: (id: string) => void;
+  onToggleRunOnStartup: (id: string) => void;
   onPriorityChange: (id: string, priority: Priority) => void;
   onStatusChange: (id: string, status: Status) => void;
   onCategoryChange: (id: string, category: Category) => void;
@@ -1526,6 +1566,7 @@ export function ProjectsTable({
   addDisabled,
   onReorder,
   onToggleFavorite,
+  onToggleRunOnStartup,
   onPriorityChange,
   onStatusChange,
   onCategoryChange,
@@ -1683,6 +1724,7 @@ export function ProjectsTable({
     animateEnter,
     iconOnly,
     onToggleFavorite,
+    onToggleRunOnStartup,
     onPriorityChange,
     onStatusChange,
     onCategoryChange,

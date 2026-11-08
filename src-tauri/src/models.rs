@@ -109,6 +109,9 @@ pub struct Project {
     pub tools: Vec<String>,
     #[serde(default)]
     pub has_run_script: bool,
+    /// Host-local: launch run script once when Deez finishes loading.
+    #[serde(default)]
+    pub run_on_startup: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agency: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
